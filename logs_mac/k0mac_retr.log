@@ -1,0 +1,80 @@
+Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Fetching 14 files: 100%|██████████| 14/14 [00:00<00:00, 5900.35it/s]
+W1021 00:52:38.080000 51272 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:46,  8.31it/s]Loading weights:  33%|███▎      | 129/391 [00:00<00:01, 242.37it/s]Loading weights:  51%|█████     | 199/391 [00:00<00:00, 253.71it/s]Loading weights:  64%|██████▍   | 250/391 [00:01<00:00, 263.75it/s]Loading weights:  75%|███████▍  | 292/391 [00:01<00:00, 243.70it/s]Loading weights:  84%|████████▎ | 327/391 [00:01<00:00, 248.75it/s]Loading weights:  92%|█████████▏| 359/391 [00:01<00:00, 248.42it/s]Loading weights: 100%|██████████| 391/391 [00:01<00:00, 229.33it/s]
+Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]Fetching 13 files: 100%|██████████| 13/13 [00:00<00:00, 6310.14it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   2%|▏         | 7/393 [00:00<00:09, 42.37it/s]Loading weights:   3%|▎         | 12/393 [00:02<01:49,  3.47it/s]Loading weights: 100%|██████████| 393/393 [00:02<00:00, 135.29it/s]
+hotpotqa encode 11.8ms search_mps 0.4ms search_cpu 0.3ms rerank50 470.5ms
+Traceback (most recent call last):
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 170, in <module>
+    E = np.zeros((len(texts), 1024), np.float16)
+^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 166, in main
+    texts = [ptext(x) for x in corpus]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 125, in cmd_retrieve
+    prefill(r["full_ids"])                            # warm-up
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 114, in encode
+    
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/utils/generic.py", line 1081, in wrapper
+    output = func(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/utils/output_capturing.py", line 287, in wrapper
+    outputs = func(self, *args, **kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py", line 669, in forward
+    encoder_outputs = self.encoder(
+                      ^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py", line 436, in forward
+    hidden_states = layer_module(
+                    ^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/modeling_layers.py", line 111, in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py", line 383, in forward
+    self_attention_output, _ = self.attention(
+                               ^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py", line 314, in forward
+    attention_output, attn_weights = self.self(
+                                     ^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/bert/modeling_bert.py", line 192, in forward
+    attn_output, attn_weights = attention_interface(
+                                ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/integrations/sdpa_attention.py", line 180, in sdpa_attention_forward
+    attn_output = attn_output.transpose(1, 2).contiguous()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: MPS backend out of memory (MPS allocated: 4.02 GiB, other allocations: 84.81 GiB, max allowed: 88.13 GiB). Tried to allocate 64.00 MiB on private pool. Use PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 to disable upper limit for memory allocations (may cause system failure).
+RETR DONE

@@ -1,0 +1,30 @@
+[10-19 00:42:44] START allenai/OLMoE-1B-7B-0924-Instruct
+Hint: The `hf-cli` skill is not installed. Run `hf skills add -g` to teach your AI agents how to use the `hf` CLI.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--allenai--OLMoE-1B-7B-0924-Instruct: No such file or directory
+[10-19 00:46:45] DONE allenai/OLMoE-1B-7B-0924-Instruct ()
+[10-19 00:46:45] START mlx-community/Qwen3-30B-A3B-4bit
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--mlx-community--Qwen3-30B-A3B-4bit: No such file or directory
+[10-19 00:52:24] DONE mlx-community/Qwen3-30B-A3B-4bit ()
+[10-19 00:52:24] START deepseek-ai/DeepSeek-V2-Lite-Chat
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--deepseek-ai--DeepSeek-V2-Lite-Chat: No such file or directory
+[10-19 00:58:36] DONE deepseek-ai/DeepSeek-V2-Lite-Chat ()
+[10-19 00:58:36] START mlx-community/GLM-4.5-Air-4bit
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--mlx-community--GLM-4.5-Air-4bit: No such file or directory
+[10-19 01:13:48] DONE mlx-community/GLM-4.5-Air-4bit ()
+[10-19 01:13:48] START mlx-community/Mixtral-8x22B-Instruct-v0.1-4bit
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--mlx-community--Mixtral-8x22B-Instruct-v0.1-4bit: No such file or directory
+[10-19 01:33:45] DONE mlx-community/Mixtral-8x22B-Instruct-v0.1-4bit ()
+[10-19 01:33:45] START mlx-community/Qwen3-235B-A22B-4bit
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--mlx-community--Qwen3-235B-A22B-4bit: No such file or directory
+[10-19 02:07:24] DONE mlx-community/Qwen3-235B-A22B-4bit ()
+[10-19 02:07:24] START mlx-community/DeepSeek-V2.5-1210-4bit
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+du: /Volumes/ZBW-SSD1/hf/hub/models--mlx-community--DeepSeek-V2.5-1210-4bit: No such file or directory
+[10-19 02:37:45] DONE mlx-community/DeepSeek-V2.5-1210-4bit ()
+ALL DOWNLOADS DONE

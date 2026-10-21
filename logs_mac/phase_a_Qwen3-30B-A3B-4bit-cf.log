@@ -1,0 +1,254 @@
+== [03:19] E1 (T0 predictors, export)
+== W1-cwq: n=500 decode tokens=2220 schema coverage=0.60
+   diff OURS_ADMIT-BASE_ADMIT@16     +0.0063  95% CI [+0.0036, +0.0092]
+   diff OURS_ADMIT-BASE_ADMIT@32     +0.0020  95% CI [-0.0001, +0.0040]
+   diff OURS_ADMIT-BASE_ADMIT@8      +0.0088  95% CI [+0.0062, +0.0115]
+   diff RPP_R-RPP@16                 +0.0193  95% CI [+0.0159, +0.0228]
+   diff RPP_R-RPP@32                 +0.0091  95% CI [+0.0060, +0.0121]
+   diff RPP_R-RPP@8                  +0.0205  95% CI [+0.0176, +0.0234]
+== W1-webqsp: n=500 decode tokens=3364 schema coverage=0.77
+   diff OURS_ADMIT-BASE_ADMIT@16     +0.0120  95% CI [+0.0082, +0.0159]
+   diff OURS_ADMIT-BASE_ADMIT@32     +0.0091  95% CI [+0.0068, +0.0115]
+   diff OURS_ADMIT-BASE_ADMIT@8      +0.0139  95% CI [+0.0105, +0.0173]
+   diff RPP_R-RPP@16                 +0.0385  95% CI [+0.0344, +0.0427]
+   diff RPP_R-RPP@32                 +0.0247  95% CI [+0.0209, +0.0284]
+   diff RPP_R-RPP@8                  +0.0331  95% CI [+0.0301, +0.0364]
+== W2c-cwq: n=200 decode tokens=196964 schema coverage=0.57
+   diff OURS_ADMIT-BASE_ADMIT@16     +0.0004  95% CI [-0.0009, +0.0018]
+   diff OURS_ADMIT-BASE_ADMIT@32     -0.0048  95% CI [-0.0074, -0.0022]
+   diff OURS_ADMIT-BASE_ADMIT@8      -0.0008  95% CI [-0.0022, +0.0006]
+   diff RPP_R-RPP@16                 +0.0029  95% CI [+0.0011, +0.0049]
+   diff RPP_R-RPP@32                 +0.0026  95% CI [+0.0001, +0.0053]
+   diff RPP_R-RPP@8                  +0.0056  95% CI [+0.0041, +0.0071]
+== [03:33] E1 by phase (T1)
+Qwen3-30B-A3B-4bit-cf: decode table over 639 token ids (build split 1600)
+
+== W1-cwq: n=459 (requests with >=2 decode steps), g0 starts a candidate in 0%
+   predictor     R@8    R@16   R@32    R@16 matched / unmatched
+   ORACLE        0.684  0.937  0.996   None / 0.937
+   OURS_ADMIT    0.569  0.779  0.914   None / 0.779
+   BASE_ADMIT    0.558  0.769  0.907   None / 0.769
+   KNN_T         0.559  0.768  0.907   None / 0.768
+   RPP_R         0.552  0.757  0.902   None / 0.757
+   KNN_R         0.545  0.748  0.892   None / 0.748
+   RPP           0.531  0.734  0.892   None / 0.734
+   GLOBAL        0.501  0.711  0.875   None / 0.711
+   CANDDEC       0.496  0.689  0.848   None / 0.689
+   CANDFIRST     0.496  0.689  0.848   None / 0.689
+   PREFILL       0.397  0.578  0.767   None / 0.578
+   FIRSTTOK      0.388  0.573  0.704   None / 0.573
+   diff CANDFIRST-FIRSTTOK@16      +11.7 pt  95% CI [+9.9, +13.3]
+   diff CANDFIRST-OURS_ADMIT@16    -9.0 pt  95% CI [-9.8, -8.1]
+   diff CANDFIRST-CANDDEC@16       +0.0 pt  95% CI [+0.0, +0.0]
+   diff FIRSTTOK-GLOBAL@16         -13.8 pt  95% CI [-15.4, -12.4]
+   diff CANDFIRST-GLOBAL@16        -2.2 pt  95% CI [-3.2, -1.2]
+
+== W1-webqsp: n=476 (requests with >=2 decode steps), g0 starts a candidate in 0%
+   predictor     R@8    R@16   R@32    R@16 matched / unmatched
+   ORACLE        0.665  0.913  0.992   None / 0.913
+   OURS_ADMIT    0.543  0.754  0.907   None / 0.754
+   BASE_ADMIT    0.528  0.741  0.897   None / 0.741
+   KNN_T         0.528  0.740  0.897   None / 0.74
+   RPP_R         0.525  0.730  0.892   None / 0.73
+   KNN_R         0.524  0.729  0.886   None / 0.729
+   RPP           0.492  0.689  0.864   None / 0.689
+   CANDDEC       0.481  0.680  0.836   None / 0.68
+   CANDFIRST     0.481  0.680  0.836   None / 0.68
+   GLOBAL        0.461  0.666  0.849   None / 0.666
+   FIRSTTOK      0.389  0.572  0.714   None / 0.572
+   PREFILL       0.392  0.571  0.762   None / 0.571
+   diff CANDFIRST-FIRSTTOK@16      +10.8 pt  95% CI [+9.3, +12.3]
+   diff CANDFIRST-OURS_ADMIT@16    -7.3 pt  95% CI [-8.1, -6.5]
+   diff CANDFIRST-CANDDEC@16       +0.0 pt  95% CI [+0.0, +0.0]
+   diff FIRSTTOK-GLOBAL@16         -9.4 pt  95% CI [-10.7, -8.2]
+   diff CANDFIRST-GLOBAL@16        +1.5 pt  95% CI [+0.4, +2.6]
+
+== W2c-cwq: n=200 (requests with >=2 decode steps), g0 starts a candidate in 0%
+   predictor     R@8    R@16   R@32    R@16 matched / unmatched
+   ORACLE        0.347  0.539  0.779   None / 0.539
+   OURS_ADMIT    0.169  0.274  0.438   None / 0.274
+   BASE_ADMIT    0.167  0.274  0.442   None / 0.274
+   RPP_R         0.168  0.273  0.438   None / 0.273
+   KNN_T         0.165  0.272  0.439   None / 0.272
+   RPP           0.162  0.270  0.435   None / 0.27
+   PREFILL       0.171  0.266  0.432   None / 0.266
+   KNN_R         0.163  0.266  0.433   None / 0.266
+   FIRSTTOK      0.157  0.263  0.432   None / 0.263
+   GLOBAL        0.157  0.263  0.432   None / 0.263
+   CANDDEC       0.151  0.249  0.413   None / 0.249
+   CANDFIRST     0.151  0.249  0.413   None / 0.249
+   diff CANDFIRST-FIRSTTOK@16      -1.4 pt  95% CI [-1.7, -1.0]
+   diff CANDFIRST-OURS_ADMIT@16    -2.5 pt  95% CI [-2.8, -2.2]
+   diff CANDFIRST-CANDDEC@16       +0.0 pt  95% CI [+0.0, +0.0]
+   diff FIRSTTOK-GLOBAL@16         +0.0 pt  95% CI [+0.0, +0.0]
+   diff CANDFIRST-GLOBAL@16        -1.4 pt  95% CI [-1.7, -1.0]
+== [03:36] decode regrouping after prefill
+CANDDEC: candidate tokens covered by the decode table 42%; CANDFIRST: first generated token starts a candidate entity in 0% of requests
+B=4: random 6.07 expert loads/layer/token; oracle (actual decode) 5.31 (-12%, 100% of oracle gain); RPP_R 5.73 (-6%, 44% of oracle gain); OURS_ADMIT 5.64 (-7%, 57% of oracle gain); BASE_ADMIT 5.73 (-6%, 44% of oracle gain); CANDDEC (new) 5.83 (-4%, 31% of oracle gain); FIRSTTOK (no retrieval) 5.57 (-8%, 65% of oracle gain); CANDFIRST (new) 5.57 (-8%, 65% of oracle gain); BASE_ADMIT+FIRSTTOK (no retrieval) 5.50 (-9%, 75% of oracle gain); OURS_ADMIT+FIRSTTOK 5.46 (-10%, 81% of oracle gain); ANSWERTOK (not deployable) 5.46 (-10%, 81% of oracle gain)
+B=8: random 4.96 expert loads/layer/token; oracle (actual decode) 4.35 (-12%, 100% of oracle gain); RPP_R 4.80 (-3%, 27% of oracle gain); OURS_ADMIT 4.68 (-6%, 46% of oracle gain); BASE_ADMIT 4.69 (-5%, 45% of oracle gain); CANDDEC (new) 4.82 (-3%, 22% of oracle gain); FIRSTTOK (no retrieval) 4.63 (-7%, 54% of oracle gain); CANDFIRST (new) 4.61 (-7%, 57% of oracle gain); BASE_ADMIT+FIRSTTOK (no retrieval) 4.51 (-9%, 73% of oracle gain); OURS_ADMIT+FIRSTTOK 4.53 (-9%, 70% of oracle gain); ANSWERTOK (not deployable) 4.44 (-10%, 86% of oracle gain)
+B=16: random 3.98 expert loads/layer/token; oracle (actual decode) 3.61 (-9%, 100% of oracle gain); RPP_R 3.89 (-2%, 24% of oracle gain); OURS_ADMIT 3.80 (-5%, 49% of oracle gain); BASE_ADMIT 3.77 (-5%, 56% of oracle gain); CANDDEC (new) 3.90 (-2%, 21% of oracle gain); FIRSTTOK (no retrieval) 3.71 (-7%, 71% of oracle gain); CANDFIRST (new) 3.74 (-6%, 64% of oracle gain); BASE_ADMIT+FIRSTTOK (no retrieval) 3.73 (-6%, 68% of oracle gain); OURS_ADMIT+FIRSTTOK 3.73 (-6%, 67% of oracle gain); ANSWERTOK (not deployable) 3.51 (-12%, 125% of oracle gain)
+B=32: random 3.13 expert loads/layer/token; oracle (actual decode) 2.90 (-7%, 100% of oracle gain); RPP_R 3.08 (-2%, 22% of oracle gain); OURS_ADMIT 3.01 (-4%, 53% of oracle gain); BASE_ADMIT 3.00 (-4%, 57% of oracle gain); CANDDEC (new) 3.08 (-2%, 23% of oracle gain); FIRSTTOK (no retrieval) 2.93 (-6%, 86% of oracle gain); CANDFIRST (new) 2.97 (-5%, 69% of oracle gain); BASE_ADMIT+FIRSTTOK (no retrieval) 2.98 (-5%, 65% of oracle gain); OURS_ADMIT+FIRSTTOK 2.99 (-4%, 60% of oracle gain); ANSWERTOK (not deployable) 2.89 (-8%, 104% of oracle gain)
+== [03:36] W2 segment regrouping
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cot_chat_cap8: 200 requests, mean decode 985 steps, N=32 B=8
+S=  8: random 4.751 | static 4.845 (+2.0%, -35% of oracle gain) | temporal 4.662 (-1.9%, 34% of oracle gain) | recent8 4.662 (-1.9%, 34% of oracle gain) | oracle 4.487 (-5.6%)
+S= 16: random 4.760 | static 4.843 (+1.8%, -43% of oracle gain) | temporal 4.693 (-1.4%, 34% of oracle gain) | recent8 4.687 (-1.5%, 37% of oracle gain) | oracle 4.564 (-4.1%)
+S= 32: random 4.768 | static 4.860 (+1.9%, -64% of oracle gain) | temporal 4.711 (-1.2%, 40% of oracle gain) | recent8 4.713 (-1.2%, 39% of oracle gain) | oracle 4.625 (-3.0%)
+S= 64: random 4.794 | static 4.884 (+1.9%, -82% of oracle gain) | temporal 4.741 (-1.1%, 48% of oracle gain) | recent8 4.749 (-0.9%, 41% of oracle gain) | oracle 4.685 (-2.3%)
+== [03:40] time-stepped simulation (S1)
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cap8: 500 requests, L=48, cache C=1536 experts (25%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    2008 ms  TPOT  61.49 ms  e2e    2233 ms  decode stall   197.0 ms/req  first-8 stall  183.9 ms  loaded  14.4 GB/req  wasted 4%
+  moeinf/none/none             TTFT    1973 ms  TPOT  18.74 ms  e2e    2063 ms  decode stall    61.7 ms/req  first-8 stall   48.9 ms  loaded  12.9 GB/req  wasted 5%
+  moeinf/la1/none              TTFT    1973 ms  TPOT  19.06 ms  e2e    2064 ms  decode stall    63.4 ms/req  first-8 stall   50.0 ms  loaded  13.1 GB/req  wasted 6%
+  hyb/la1/T0:BASE_ADMIT        TTFT    1868 ms  TPOT  15.98 ms  e2e    1949 ms  decode stall    52.9 ms/req  first-8 stall   39.7 ms  loaded  13.0 GB/req  wasted 12%
+  hyb/la1/T0:OURS_ADMIT        TTFT    1872 ms  TPOT  15.78 ms  e2e    1952 ms  decode stall    51.5 ms/req  first-8 stall   38.3 ms  loaded  13.0 GB/req  wasted 12%
+  hyb/la1/T0:ORACLE            TTFT    1837 ms  TPOT   7.14 ms  e2e    1878 ms  decode stall    13.5 ms/req  first-8 stall    4.7 ms  loaded  11.9 GB/req  wasted 8%
+  sw-moeinf/la1/none           TTFT    1652 ms  TPOT  19.13 ms  e2e    1743 ms  decode stall    63.6 ms/req  first-8 stall   50.2 ms  loaded  10.2 GB/req  wasted 8%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1639 ms  TPOT  19.53 ms  e2e    1731 ms  decode stall    64.3 ms/req  first-8 stall   51.0 ms  loaded  10.5 GB/req  wasted 9%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1639 ms  TPOT  16.06 ms  e2e    1720 ms  decode stall    53.2 ms/req  first-8 stall   40.0 ms  loaded  11.0 GB/req  wasted 9%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1637 ms  TPOT  15.83 ms  e2e    1717 ms  decode stall    51.7 ms/req  first-8 stall   38.5 ms  loaded  10.9 GB/req  wasted 8%
+  sw-hyb/la1/T0:RPP_R          TTFT    1638 ms  TPOT  16.65 ms  e2e    1721 ms  decode stall    54.6 ms/req  first-8 stall   41.4 ms  loaded  10.8 GB/req  wasted 9%
+  sw-hyb/la1/T0:KNN_T          TTFT    1641 ms  TPOT  16.00 ms  e2e    1722 ms  decode stall    53.1 ms/req  first-8 stall   39.9 ms  loaded  11.1 GB/req  wasted 9%
+  sw-hyb/la1/T0:KNN_R          TTFT    1641 ms  TPOT  17.51 ms  e2e    1726 ms  decode stall    57.3 ms/req  first-8 stall   44.0 ms  loaded  11.2 GB/req  wasted 9%
+  hyb/la1/T0:KNN_T             TTFT    1860 ms  TPOT  15.94 ms  e2e    1941 ms  decode stall    52.8 ms/req  first-8 stall   39.6 ms  loaded  13.0 GB/req  wasted 13%
+  hyb/la1/T0:KNN_R             TTFT    1863 ms  TPOT  17.37 ms  e2e    1948 ms  decode stall    56.9 ms/req  first-8 stall   43.6 ms  loaded  13.2 GB/req  wasted 13%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1657 ms  TPOT  19.54 ms  e2e    1751 ms  decode stall    65.6 ms/req  first-8 stall   52.0 ms  loaded  10.3 GB/req  wasted 8%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1659 ms  TPOT  19.45 ms  e2e    1752 ms  decode stall    64.6 ms/req  first-8 stall   51.1 ms  loaded  10.3 GB/req  wasted 8%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1637 ms  TPOT  16.89 ms  e2e    1721 ms  decode stall    56.2 ms/req  first-8 stall   42.8 ms  loaded  11.0 GB/req  wasted 9%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1639 ms  TPOT  16.94 ms  e2e    1724 ms  decode stall    57.1 ms/req  first-8 stall   43.6 ms  loaded  11.1 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1646 ms  TPOT   7.13 ms  e2e    1687 ms  decode stall    13.4 ms/req  first-8 stall    4.7 ms  loaded  10.2 GB/req  wasted 8%
+  sw-hyb/la1/T1:ORACLE         TTFT    1653 ms  TPOT  16.42 ms  e2e    1729 ms  decode stall    48.6 ms/req  first-8 stall   39.0 ms  loaded  10.1 GB/req  wasted 8%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cap8: 500 requests, L=48, cache C=3072 experts (50%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1915 ms  TPOT  35.27 ms  e2e    2047 ms  decode stall   103.9 ms/req  first-8 stall   97.7 ms  loaded  12.8 GB/req  wasted 5%
+  moeinf/none/none             TTFT    1640 ms  TPOT  10.02 ms  e2e    1685 ms  decode stall    16.9 ms/req  first-8 stall   14.2 ms  loaded   9.5 GB/req  wasted 6%
+  moeinf/la1/none              TTFT    1640 ms  TPOT   9.59 ms  e2e    1683 ms  decode stall    15.0 ms/req  first-8 stall   12.6 ms  loaded   9.6 GB/req  wasted 7%
+  hyb/la1/T0:BASE_ADMIT        TTFT    1591 ms  TPOT   8.39 ms  e2e    1629 ms  decode stall    10.4 ms/req  first-8 stall    8.2 ms  loaded  10.4 GB/req  wasted 16%
+  hyb/la1/T0:OURS_ADMIT        TTFT    1591 ms  TPOT   7.93 ms  e2e    1627 ms  decode stall     8.4 ms/req  first-8 stall    6.3 ms  loaded  10.3 GB/req  wasted 15%
+  hyb/la1/T0:ORACLE            TTFT    1570 ms  TPOT   6.47 ms  e2e    1600 ms  decode stall     1.3 ms/req  first-8 stall    0.9 ms  loaded   8.9 GB/req  wasted 8%
+  sw-moeinf/la1/none           TTFT    1195 ms  TPOT   9.49 ms  e2e    1238 ms  decode stall    14.6 ms/req  first-8 stall   12.3 ms  loaded   5.6 GB/req  wasted 11%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1227 ms  TPOT   8.10 ms  e2e    1264 ms  decode stall     9.0 ms/req  first-8 stall    6.9 ms  loaded   6.0 GB/req  wasted 13%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1210 ms  TPOT   8.13 ms  e2e    1247 ms  decode stall     9.5 ms/req  first-8 stall    7.3 ms  loaded   7.0 GB/req  wasted 12%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1211 ms  TPOT   7.65 ms  e2e    1247 ms  decode stall     7.4 ms/req  first-8 stall    5.4 ms  loaded   6.8 GB/req  wasted 12%
+  sw-hyb/la1/T0:RPP_R          TTFT    1225 ms  TPOT   7.63 ms  e2e    1261 ms  decode stall     7.9 ms/req  first-8 stall    5.6 ms  loaded   6.7 GB/req  wasted 12%
+  sw-hyb/la1/T0:KNN_T          TTFT    1226 ms  TPOT   7.73 ms  e2e    1262 ms  decode stall     7.7 ms/req  first-8 stall    5.7 ms  loaded   7.0 GB/req  wasted 12%
+  sw-hyb/la1/T0:KNN_R          TTFT    1223 ms  TPOT   8.17 ms  e2e    1260 ms  decode stall     9.2 ms/req  first-8 stall    7.1 ms  loaded   7.0 GB/req  wasted 12%
+  hyb/la1/T0:KNN_T             TTFT    1592 ms  TPOT   7.88 ms  e2e    1628 ms  decode stall     8.1 ms/req  first-8 stall    6.2 ms  loaded  10.3 GB/req  wasted 15%
+  hyb/la1/T0:KNN_R             TTFT    1594 ms  TPOT   8.28 ms  e2e    1632 ms  decode stall     9.6 ms/req  first-8 stall    7.5 ms  loaded  10.4 GB/req  wasted 15%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1197 ms  TPOT   9.52 ms  e2e    1240 ms  decode stall    14.6 ms/req  first-8 stall   12.3 ms  loaded   5.7 GB/req  wasted 12%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1201 ms  TPOT   9.75 ms  e2e    1245 ms  decode stall    15.6 ms/req  first-8 stall   12.9 ms  loaded   5.8 GB/req  wasted 12%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1211 ms  TPOT   7.99 ms  e2e    1249 ms  decode stall     9.3 ms/req  first-8 stall    6.8 ms  loaded   7.0 GB/req  wasted 14%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1210 ms  TPOT   8.32 ms  e2e    1248 ms  decode stall    10.2 ms/req  first-8 stall    8.1 ms  loaded   7.1 GB/req  wasted 13%
+  sw-hyb/la1/T0:ORACLE         TTFT    1196 ms  TPOT   6.39 ms  e2e    1224 ms  decode stall     0.6 ms/req  first-8 stall    0.3 ms  loaded   5.5 GB/req  wasted 11%
+  sw-hyb/la1/T1:ORACLE         TTFT    1195 ms  TPOT   7.73 ms  e2e    1230 ms  decode stall     6.1 ms/req  first-8 stall    5.7 ms  loaded   5.5 GB/req  wasted 11%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cap8: 500 requests, L=48, cache C=4608 experts (75%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1612 ms  TPOT   9.40 ms  e2e    1652 ms  decode stall    12.4 ms/req  first-8 stall   11.2 ms  loaded   9.2 GB/req  wasted 7%
+  moeinf/none/none             TTFT     881 ms  TPOT   7.39 ms  e2e     913 ms  decode stall     4.6 ms/req  first-8 stall    4.0 ms  loaded   2.5 GB/req  wasted 20%
+  moeinf/la1/none              TTFT     881 ms  TPOT   7.15 ms  e2e     912 ms  decode stall     3.6 ms/req  first-8 stall    3.1 ms  loaded   2.6 GB/req  wasted 21%
+  hyb/la1/T0:BASE_ADMIT        TTFT     999 ms  TPOT   6.76 ms  e2e    1029 ms  decode stall     2.1 ms/req  first-8 stall    1.7 ms  loaded   4.7 GB/req  wasted 28%
+  hyb/la1/T0:OURS_ADMIT        TTFT    1019 ms  TPOT   6.75 ms  e2e    1049 ms  decode stall     2.0 ms/req  first-8 stall    1.6 ms  loaded   5.0 GB/req  wasted 29%
+  hyb/la1/T0:ORACLE            TTFT     881 ms  TPOT   6.43 ms  e2e     910 ms  decode stall     0.9 ms/req  first-8 stall    0.7 ms  loaded   2.6 GB/req  wasted 22%
+  sw-moeinf/la1/none           TTFT     748 ms  TPOT   7.16 ms  e2e     780 ms  decode stall     3.6 ms/req  first-8 stall    3.2 ms  loaded   1.3 GB/req  wasted 38%
+  sw-hyb/la1/T0:GLOBAL         TTFT     884 ms  TPOT   6.39 ms  e2e     912 ms  decode stall     0.4 ms/req  first-8 stall    0.3 ms  loaded   2.6 GB/req  wasted 23%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT     813 ms  TPOT   6.52 ms  e2e     842 ms  decode stall     1.0 ms/req  first-8 stall    0.8 ms  loaded   2.7 GB/req  wasted 28%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT     833 ms  TPOT   6.44 ms  e2e     862 ms  decode stall     0.6 ms/req  first-8 stall    0.4 ms  loaded   2.9 GB/req  wasted 27%
+  sw-hyb/la1/T0:RPP_R          TTFT     883 ms  TPOT   6.47 ms  e2e     912 ms  decode stall     0.8 ms/req  first-8 stall    0.5 ms  loaded   3.5 GB/req  wasted 24%
+  sw-hyb/la1/T0:KNN_T          TTFT     795 ms  TPOT   6.61 ms  e2e     825 ms  decode stall     1.3 ms/req  first-8 stall    1.1 ms  loaded   2.2 GB/req  wasted 32%
+  sw-hyb/la1/T0:KNN_R          TTFT     818 ms  TPOT   6.67 ms  e2e     848 ms  decode stall     1.6 ms/req  first-8 stall    1.3 ms  loaded   2.4 GB/req  wasted 29%
+  hyb/la1/T0:KNN_T             TTFT    1001 ms  TPOT   6.82 ms  e2e    1032 ms  decode stall     2.3 ms/req  first-8 stall    1.9 ms  loaded   4.2 GB/req  wasted 23%
+  hyb/la1/T0:KNN_R             TTFT     996 ms  TPOT   6.87 ms  e2e    1026 ms  decode stall     2.5 ms/req  first-8 stall    2.1 ms  loaded   4.2 GB/req  wasted 23%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT     745 ms  TPOT   7.11 ms  e2e     777 ms  decode stall     3.4 ms/req  first-8 stall    3.0 ms  loaded   1.4 GB/req  wasted 37%
+  sw-hyb/la1/T1:CANDFIRST      TTFT     744 ms  TPOT   7.30 ms  e2e     776 ms  decode stall     4.0 ms/req  first-8 stall    3.6 ms  loaded   1.5 GB/req  wasted 37%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT     833 ms  TPOT   6.49 ms  e2e     862 ms  decode stall     0.8 ms/req  first-8 stall    0.6 ms  loaded   3.0 GB/req  wasted 30%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT     813 ms  TPOT   6.51 ms  e2e     842 ms  decode stall     1.0 ms/req  first-8 stall    0.8 ms  loaded   2.8 GB/req  wasted 29%
+  sw-hyb/la1/T0:ORACLE         TTFT     749 ms  TPOT   6.33 ms  e2e     777 ms  decode stall     0.0 ms/req  first-8 stall    0.0 ms  loaded   1.3 GB/req  wasted 39%
+  sw-hyb/la1/T1:ORACLE         TTFT     748 ms  TPOT   6.48 ms  e2e     777 ms  decode stall     0.7 ms/req  first-8 stall    0.6 ms  loaded   1.3 GB/req  wasted 38%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_webqsp_M0_cap8: 500 requests, L=48, cache C=1536 experts (25%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1947 ms  TPOT  55.09 ms  e2e    2227 ms  decode stall   237.1 ms/req  first-8 stall  205.9 ms  loaded  14.2 GB/req  wasted 3%
+  moeinf/none/none             TTFT    1919 ms  TPOT  20.04 ms  e2e    2058 ms  decode stall    96.5 ms/req  first-8 stall   67.7 ms  loaded  12.7 GB/req  wasted 4%
+  moeinf/la1/none              TTFT    1919 ms  TPOT  20.54 ms  e2e    2062 ms  decode stall   100.2 ms/req  first-8 stall   70.0 ms  loaded  13.0 GB/req  wasted 6%
+  hyb/la1/T0:BASE_ADMIT        TTFT    1771 ms  TPOT  16.03 ms  e2e    1896 ms  decode stall    82.2 ms/req  first-8 stall   52.8 ms  loaded  12.6 GB/req  wasted 12%
+  hyb/la1/T0:OURS_ADMIT        TTFT    1771 ms  TPOT  15.23 ms  e2e    1892 ms  decode stall    78.5 ms/req  first-8 stall   49.4 ms  loaded  12.5 GB/req  wasted 12%
+  hyb/la1/T0:ORACLE            TTFT    1757 ms  TPOT   7.68 ms  e2e    1828 ms  decode stall    28.6 ms/req  first-8 stall    9.6 ms  loaded  11.6 GB/req  wasted 8%
+  sw-moeinf/la1/none           TTFT    1603 ms  TPOT  20.62 ms  e2e    1747 ms  decode stall   100.5 ms/req  first-8 stall   70.3 ms  loaded  10.2 GB/req  wasted 7%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1586 ms  TPOT  19.64 ms  e2e    1726 ms  decode stall    96.9 ms/req  first-8 stall   67.3 ms  loaded  10.5 GB/req  wasted 9%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1587 ms  TPOT  16.07 ms  e2e    1712 ms  decode stall    82.4 ms/req  first-8 stall   53.1 ms  loaded  10.9 GB/req  wasted 9%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1584 ms  TPOT  15.23 ms  e2e    1706 ms  decode stall    78.7 ms/req  first-8 stall   49.6 ms  loaded  10.8 GB/req  wasted 8%
+  sw-hyb/la1/T0:RPP_R          TTFT    1585 ms  TPOT  16.11 ms  e2e    1711 ms  decode stall    83.4 ms/req  first-8 stall   53.9 ms  loaded  10.8 GB/req  wasted 8%
+  sw-hyb/la1/T0:KNN_T          TTFT    1589 ms  TPOT  16.08 ms  e2e    1715 ms  decode stall    82.6 ms/req  first-8 stall   53.3 ms  loaded  11.0 GB/req  wasted 9%
+  sw-hyb/la1/T0:KNN_R          TTFT    1589 ms  TPOT  16.46 ms  e2e    1716 ms  decode stall    85.1 ms/req  first-8 stall   55.1 ms  loaded  11.1 GB/req  wasted 9%
+  hyb/la1/T0:KNN_T             TTFT    1763 ms  TPOT  15.99 ms  e2e    1888 ms  decode stall    82.2 ms/req  first-8 stall   52.8 ms  loaded  12.5 GB/req  wasted 13%
+  hyb/la1/T0:KNN_R             TTFT    1763 ms  TPOT  16.39 ms  e2e    1890 ms  decode stall    84.7 ms/req  first-8 stall   54.7 ms  loaded  12.7 GB/req  wasted 13%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1608 ms  TPOT  20.86 ms  e2e    1754 ms  decode stall   103.3 ms/req  first-8 stall   72.0 ms  loaded  10.3 GB/req  wasted 8%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1610 ms  TPOT  20.51 ms  e2e    1752 ms  decode stall    99.9 ms/req  first-8 stall   70.8 ms  loaded  10.3 GB/req  wasted 8%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1584 ms  TPOT  16.19 ms  e2e    1711 ms  decode stall    83.6 ms/req  first-8 stall   54.5 ms  loaded  11.0 GB/req  wasted 9%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1587 ms  TPOT  17.11 ms  e2e    1718 ms  decode stall    89.1 ms/req  first-8 stall   57.9 ms  loaded  11.0 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1592 ms  TPOT   7.69 ms  e2e    1663 ms  decode stall    28.8 ms/req  first-8 stall    9.7 ms  loaded  10.1 GB/req  wasted 8%
+  sw-hyb/la1/T1:ORACLE         TTFT    1605 ms  TPOT  17.39 ms  e2e    1723 ms  decode stall    75.6 ms/req  first-8 stall   54.7 ms  loaded  10.1 GB/req  wasted 7%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_webqsp_M0_cap8: 500 requests, L=48, cache C=3072 experts (50%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1834 ms  TPOT  30.53 ms  e2e    1996 ms  decode stall   119.8 ms/req  first-8 stall  104.7 ms  loaded  12.2 GB/req  wasted 4%
+  moeinf/none/none             TTFT    1568 ms  TPOT  10.58 ms  e2e    1636 ms  decode stall    25.9 ms/req  first-8 stall   20.2 ms  loaded   8.9 GB/req  wasted 5%
+  moeinf/la1/none              TTFT    1568 ms  TPOT  10.11 ms  e2e    1633 ms  decode stall    23.0 ms/req  first-8 stall   17.9 ms  loaded   9.0 GB/req  wasted 7%
+  hyb/la1/T0:BASE_ADMIT        TTFT    1507 ms  TPOT   8.10 ms  e2e    1564 ms  decode stall    14.5 ms/req  first-8 stall   10.2 ms  loaded   9.8 GB/req  wasted 16%
+  hyb/la1/T0:OURS_ADMIT        TTFT    1507 ms  TPOT   7.77 ms  e2e    1562 ms  decode stall    12.3 ms/req  first-8 stall    8.4 ms  loaded   9.7 GB/req  wasted 16%
+  hyb/la1/T0:ORACLE            TTFT    1494 ms  TPOT   6.47 ms  e2e    1538 ms  decode stall     2.0 ms/req  first-8 stall    1.1 ms  loaded   8.3 GB/req  wasted 7%
+  sw-moeinf/la1/none           TTFT    1145 ms  TPOT   9.92 ms  e2e    1210 ms  decode stall    22.3 ms/req  first-8 stall   17.2 ms  loaded   5.2 GB/req  wasted 10%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1189 ms  TPOT   8.02 ms  e2e    1246 ms  decode stall    13.7 ms/req  first-8 stall    9.7 ms  loaded   5.8 GB/req  wasted 12%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1171 ms  TPOT   7.81 ms  e2e    1227 ms  decode stall    13.1 ms/req  first-8 stall    9.0 ms  loaded   6.7 GB/req  wasted 12%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1173 ms  TPOT   7.42 ms  e2e    1226 ms  decode stall    10.6 ms/req  first-8 stall    6.9 ms  loaded   6.6 GB/req  wasted 11%
+  sw-hyb/la1/T0:RPP_R          TTFT    1189 ms  TPOT   7.56 ms  e2e    1243 ms  decode stall    11.5 ms/req  first-8 stall    7.5 ms  loaded   6.6 GB/req  wasted 12%
+  sw-hyb/la1/T0:KNN_T          TTFT    1190 ms  TPOT   7.62 ms  e2e    1244 ms  decode stall    11.4 ms/req  first-8 stall    7.7 ms  loaded   6.8 GB/req  wasted 12%
+  sw-hyb/la1/T0:KNN_R          TTFT    1181 ms  TPOT   7.87 ms  e2e    1237 ms  decode stall    12.6 ms/req  first-8 stall    8.7 ms  loaded   6.7 GB/req  wasted 11%
+  hyb/la1/T0:KNN_T             TTFT    1513 ms  TPOT   7.80 ms  e2e    1568 ms  decode stall    12.0 ms/req  first-8 stall    8.3 ms  loaded   9.8 GB/req  wasted 16%
+  hyb/la1/T0:KNN_R             TTFT    1510 ms  TPOT   8.10 ms  e2e    1567 ms  decode stall    13.8 ms/req  first-8 stall    9.7 ms  loaded   9.6 GB/req  wasted 15%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1150 ms  TPOT   9.85 ms  e2e    1214 ms  decode stall    21.7 ms/req  first-8 stall   16.9 ms  loaded   5.4 GB/req  wasted 11%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1156 ms  TPOT   9.93 ms  e2e    1220 ms  decode stall    22.2 ms/req  first-8 stall   17.3 ms  loaded   5.5 GB/req  wasted 12%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1173 ms  TPOT   7.71 ms  e2e    1229 ms  decode stall    12.9 ms/req  first-8 stall    8.5 ms  loaded   6.9 GB/req  wasted 14%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1171 ms  TPOT   8.00 ms  e2e    1228 ms  decode stall    14.3 ms/req  first-8 stall    9.9 ms  loaded   6.9 GB/req  wasted 13%
+  sw-hyb/la1/T0:ORACLE         TTFT    1146 ms  TPOT   6.39 ms  e2e    1190 ms  decode stall     0.9 ms/req  first-8 stall    0.2 ms  loaded   5.2 GB/req  wasted 10%
+  sw-hyb/la1/T1:ORACLE         TTFT    1146 ms  TPOT   8.06 ms  e2e    1198 ms  decode stall    10.0 ms/req  first-8 stall    9.0 ms  loaded   5.2 GB/req  wasted 10%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_webqsp_M0_cap8: 500 requests, L=48, cache C=4608 experts (75%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1186 ms  TPOT   8.11 ms  e2e    1239 ms  decode stall    11.2 ms/req  first-8 stall    8.8 ms  loaded   5.3 GB/req  wasted 9%
+  moeinf/none/none             TTFT     783 ms  TPOT   7.24 ms  e2e     831 ms  decode stall     5.9 ms/req  first-8 stall    4.6 ms  loaded   1.6 GB/req  wasted 21%
+  moeinf/la1/none              TTFT     783 ms  TPOT   7.05 ms  e2e     830 ms  decode stall     4.7 ms/req  first-8 stall    3.6 ms  loaded   1.7 GB/req  wasted 23%
+  hyb/la1/T0:BASE_ADMIT        TTFT     941 ms  TPOT   6.68 ms  e2e     986 ms  decode stall     2.7 ms/req  first-8 stall    1.9 ms  loaded   4.4 GB/req  wasted 31%
+  hyb/la1/T0:OURS_ADMIT        TTFT     959 ms  TPOT   6.67 ms  e2e    1005 ms  decode stall     2.6 ms/req  first-8 stall    1.9 ms  loaded   4.6 GB/req  wasted 32%
+  hyb/la1/T0:ORACLE            TTFT     785 ms  TPOT   6.40 ms  e2e     829 ms  decode stall     1.0 ms/req  first-8 stall    0.5 ms  loaded   1.7 GB/req  wasted 24%
+  sw-moeinf/la1/none           TTFT     714 ms  TPOT   7.27 ms  e2e     762 ms  decode stall     5.5 ms/req  first-8 stall    4.5 ms  loaded   1.0 GB/req  wasted 35%
+  sw-hyb/la1/T0:GLOBAL         TTFT     860 ms  TPOT   6.41 ms  e2e     903 ms  decode stall     0.6 ms/req  first-8 stall    0.4 ms  loaded   2.4 GB/req  wasted 21%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT     794 ms  TPOT   6.50 ms  e2e     838 ms  decode stall     1.4 ms/req  first-8 stall    1.0 ms  loaded   2.6 GB/req  wasted 27%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT     810 ms  TPOT   6.42 ms  e2e     853 ms  decode stall     0.9 ms/req  first-8 stall    0.6 ms  loaded   2.8 GB/req  wasted 26%
+  sw-hyb/la1/T0:RPP_R          TTFT     860 ms  TPOT   6.45 ms  e2e     903 ms  decode stall     0.9 ms/req  first-8 stall    0.6 ms  loaded   3.3 GB/req  wasted 22%
+  sw-hyb/la1/T0:KNN_T          TTFT     780 ms  TPOT   6.56 ms  e2e     824 ms  decode stall     1.7 ms/req  first-8 stall    1.2 ms  loaded   2.2 GB/req  wasted 31%
+  sw-hyb/la1/T0:KNN_R          TTFT     763 ms  TPOT   6.67 ms  e2e     807 ms  decode stall     2.3 ms/req  first-8 stall    1.7 ms  loaded   1.9 GB/req  wasted 31%
+  hyb/la1/T0:KNN_T             TTFT     929 ms  TPOT   6.71 ms  e2e     974 ms  decode stall     2.9 ms/req  first-8 stall    2.1 ms  loaded   3.7 GB/req  wasted 26%
+  hyb/la1/T0:KNN_R             TTFT     891 ms  TPOT   6.76 ms  e2e     937 ms  decode stall     3.3 ms/req  first-8 stall    2.3 ms  loaded   3.2 GB/req  wasted 26%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT     712 ms  TPOT   7.23 ms  e2e     760 ms  decode stall     5.2 ms/req  first-8 stall    4.3 ms  loaded   1.1 GB/req  wasted 36%
+  sw-hyb/la1/T1:CANDFIRST      TTFT     710 ms  TPOT   7.25 ms  e2e     758 ms  decode stall     5.2 ms/req  first-8 stall    4.4 ms  loaded   1.2 GB/req  wasted 36%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT     810 ms  TPOT   6.46 ms  e2e     853 ms  decode stall     1.2 ms/req  first-8 stall    0.8 ms  loaded   2.9 GB/req  wasted 29%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT     794 ms  TPOT   6.53 ms  e2e     839 ms  decode stall     1.6 ms/req  first-8 stall    1.1 ms  loaded   2.7 GB/req  wasted 29%
+  sw-hyb/la1/T0:ORACLE         TTFT     714 ms  TPOT   6.33 ms  e2e     756 ms  decode stall     0.0 ms/req  first-8 stall    0.0 ms  loaded   1.0 GB/req  wasted 37%
+  sw-hyb/la1/T1:ORACLE         TTFT     713 ms  TPOT   6.57 ms  e2e     757 ms  decode stall     1.2 ms/req  first-8 stall    1.2 ms  loaded   1.0 GB/req  wasted 35%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cot_chat_cap8: 100 requests, L=48, cache C=1536 experts (25%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1985 ms  TPOT  33.41 ms  e2e   33739 ms  decode stall 25552.0 ms/req  first-8 stall  361.0 ms  loaded 242.4 GB/req  wasted 0%
+  moeinf/none/none             TTFT    1980 ms  TPOT  32.34 ms  e2e   32214 ms  decode stall 24031.6 ms/req  first-8 stall  302.3 ms  loaded 228.7 GB/req  wasted 0%
+  sw-moeinf/la1/none           TTFT    1684 ms  TPOT  33.57 ms  e2e   33014 ms  decode stall 25127.8 ms/req  first-8 stall  316.4 ms  loaded 282.9 GB/req  wasted 20%
+  sw-hyb/la1/seg16             TTFT    1702 ms  TPOT  34.18 ms  e2e   33464 ms  decode stall 25559.9 ms/req  first-8 stall  316.3 ms  loaded 295.3 GB/req  wasted 21%
+  sw-hyb/la1/seg32             TTFT    1696 ms  TPOT  34.67 ms  e2e   33860 ms  decode stall 25962.2 ms/req  first-8 stall  316.4 ms  loaded 295.7 GB/req  wasted 20%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1639 ms  TPOT  53.70 ms  e2e   50545 ms  decode stall 42703.2 ms/req  first-8 stall  541.1 ms  loaded 448.0 GB/req  wasted 15%
+  sw-hyb/la1/T0:ORACLE         TTFT    1651 ms  TPOT  32.33 ms  e2e   32129 ms  decode stall 24275.5 ms/req  first-8 stall  394.6 ms  loaded 274.8 GB/req  wasted 21%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cot_chat_cap8: 100 requests, L=48, cache C=3072 experts (50%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1688 ms  TPOT  10.92 ms  e2e   11836 ms  decode stall  3945.4 ms/req  first-8 stall  199.9 ms  loaded  45.3 GB/req  wasted 1%
+  moeinf/none/none             TTFT    1675 ms  TPOT  10.64 ms  e2e   11606 ms  decode stall  3728.7 ms/req  first-8 stall  113.6 ms  loaded  43.2 GB/req  wasted 1%
+  sw-moeinf/la1/none           TTFT    1258 ms  TPOT  10.41 ms  e2e   10981 ms  decode stall  3520.8 ms/req  first-8 stall  114.4 ms  loaded  56.3 GB/req  wasted 30%
+  sw-hyb/la1/seg16             TTFT    1267 ms  TPOT  10.52 ms  e2e   11053 ms  decode stall  3583.8 ms/req  first-8 stall  114.2 ms  loaded  68.7 GB/req  wasted 40%
+  sw-hyb/la1/seg32             TTFT    1271 ms  TPOT  10.92 ms  e2e   11358 ms  decode stall  3885.0 ms/req  first-8 stall  114.1 ms  loaded  72.0 GB/req  wasted 36%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1229 ms  TPOT  14.91 ms  e2e   14564 ms  decode stall  7132.4 ms/req  first-8 stall  178.4 ms  loaded  98.1 GB/req  wasted 23%
+  sw-hyb/la1/T0:ORACLE         TTFT    1212 ms  TPOT   9.77 ms  e2e   10490 ms  decode stall  3075.2 ms/req  first-8 stall  122.6 ms  loaded  51.4 GB/req  wasted 31%
+outputs/moe_edge/traces/Qwen3-30B-A3B-4bit-cf_cwq_M0_cot_chat_cap8: 100 requests, L=48, cache C=4608 experts (75%), expert 2.7 MB, load 0.29 ms, decode layer 0.13 ms
+  lru/none/none                TTFT    1083 ms  TPOT   6.90 ms  e2e    7704 ms  decode stall   418.5 ms/req  first-8 stall   39.3 ms  loaded   8.1 GB/req  wasted 7%
+  moeinf/none/none             TTFT    1036 ms  TPOT   6.65 ms  e2e    7488 ms  decode stall   250.1 ms/req  first-8 stall   17.6 ms  loaded   6.2 GB/req  wasted 7%
+  sw-moeinf/la1/none           TTFT     850 ms  TPOT   6.55 ms  e2e    7227 ms  decode stall   174.9 ms/req  first-8 stall    7.1 ms  loaded   6.8 GB/req  wasted 42%
+  sw-hyb/la1/seg16             TTFT     850 ms  TPOT   6.55 ms  e2e    7226 ms  decode stall   173.7 ms/req  first-8 stall    7.1 ms  loaded   7.1 GB/req  wasted 45%
+  sw-hyb/la1/seg32             TTFT     850 ms  TPOT   6.55 ms  e2e    7226 ms  decode stall   173.5 ms/req  first-8 stall    7.1 ms  loaded   7.1 GB/req  wasted 44%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT     863 ms  TPOT   6.77 ms  e2e    7398 ms  decode stall   332.5 ms/req  first-8 stall   31.1 ms  loaded  10.6 GB/req  wasted 37%
+  sw-hyb/la1/T0:ORACLE         TTFT     838 ms  TPOT   6.40 ms  e2e    7106 ms  decode stall    66.3 ms/req  first-8 stall    3.6 ms  loaded   5.9 GB/req  wasted 45%
+== [04:53] PHASE A DONE Qwen3-30B-A3B-4bit-cf

@@ -1,0 +1,2199 @@
+IEEE TRANSACTIONS ON MOBILE COMPUTING 1
+EdgeMoE: Empowering Sparse Large Language
+Models on Mobile Devices
+Rongjie Yi∗, Liwei Guo †, Shiyun Wei ‡, Ao Zhou ∗, Shangguang Wang ∗ Senior Member, IEEE, and Mengwei
+Xu∗ Member, IEEE, ∗Beijing University of Posts and Telecommunications, China
+†University of Electronic Science and Technology of China, China
+‡Zhongguangcun Laboratory, China
+Abstract—Large language models (LLMs) such as GPTs and
+Mixtral-8x7B have revolutionized machine intelligence due to
+their exceptional abilities in generic ML tasks. Transiting LLMs
+from datacenters to edge devices brings benefits like better
+privacy and availability, but is challenged by their massive
+parameter size and thus unbearable runtime costs.
+To this end, we present EdgeMoE, an on-device inference
+engine for mixture-of-expert (MoE) LLMs – a popular form of
+sparse LLM that scales its parameter size with almost constant
+computing complexity. EdgeMoE achieves both memory- and
+compute-efficiency by partitioning the model into the storage
+hierarchy: non-expert weights are held in device memory; while
+expert weights are held on external storage and fetched to
+memory only when activated. This design is motivated by a
+key observation that expert weights are bulky but infrequently
+used due to sparse activation. To further reduce the expert I/O
+swapping overhead, EdgeMoE incorporates two novel techniques:
+(1) expert-wise bitwidth adaptation that reduces the expert
+sizes with tolerable accuracy loss; (2) expert preloading that
+predicts the activated experts ahead of time and preloads it
+with the compute-I/O pipeline. On popular MoE LLMs and
+edge devices, EdgeMoE showcase significant memory savings
+and speedup over competitive baselines. The code is available
+at https://github .com/UbiquitousLearning/mllm.
+Index Terms—Large language model, mobile devices, mixture
+of experts.
+I. I NTRODUCTION
+L
+ARGE language models (LLMs), e.g., GPTs [20], [33],
+[71]–[74] and LLaMa [81], [82], are reshaping ma-
+chine intelligence for their remarkable performance on generic
+NLP tasks, few-shot ability, and scalability. While born in
+datacenter warehouses, LLMs are gradually sinking to edge
+devices like personal PCs, smartphones, and even IoTs, for
+better data privacy, availability, and personalization. In this
+trend, LLMs not only greatly advance the state-of-the-art
+performance of edge ML tasks compared to traditional DNNs,
+but also enable many new, exciting edge applications [5]. For
+instance, Qualcomm has deployed a text-to-image generative
+LLM model with more than 1 billion parameters entirely on
+smartphones [15]. Huawei has embedded a multimodal LLM
+into its smartphones to facilitate accurate natural language-
+based content searching [3].
+Landing LLMs on mobile devices face a key challenge of
+its vast parameter size and consequently unaffordable runtime
+cost. To alleviate this issue, mixture-of-experts (MoE) archi-
+tecture [34], [46], which allows only part of the LLM to be
+activated in per-token decoding, has been proposed recently.
+The most representative MoE design is to substitute the single
+feed-forward network (FFN) within each transformer block
+with many experts (each is an independent FFN). During
+inference, a trainable function (namely router) within each
+transformer block routes the input to only Top-K (K=1 or
+2) of all experts. More design details of MoE LLMs are
+presented in §II. Such MoE-based LLMs have been extensively
+researched [31], [35], [55], [56], [75], [77], [96] and adopted
+in industry [1]. Intuitively, the sparse activation makes lots of
+sense as LLMs go larger and serve as a foundation model for
+various tasks, different tasks or input data could require only
+a tiny, different portion of the model to work, just as how
+human brains function [39].
+Pros and Cons of MoE Through their sparsity design,
+MoE LLMs can scale their parameter size and ability with
+almost constant computing complexity, making them a good
+fit for edge devices whose storage is much more cost-efficient
+and scalable than the computing capacity. Empirically, to hold
+a 105B-parameter GLaM [31], a device needs 1T (external)
+storage that costs only less than $100; yet to execute it at a
+reasonable speed, e.g., 10 tokens/sec, five high-end GPUs are
+demanded that cost about $65K. However, MoE LLMs are
+too large to fit into device memory (detailed in §II-B). Simply
+scaling down the expert number could significantly degrade the
+model performance [35]; either, frequently swapping weights
+between memory and storage incurs huge overhead due to the
+autoregressive nature of LLM.
+EdgeMoE: an expert-centric LLM engine for mobile
+devices. This work presents EdgeMoE, the first on-device
+LLM inference engine that can scale out the model size (expert
+number) with both memory and time efficiency. The overall
+design of EdgeMoE is based on a unique observation: most
+computations reside in a small portion of non-expert weights
+(“hot weights”) that can be held in device memory; while the
+expert weights contribute most of the memory footprint but
+only a tiny part of computations (“cold weights”). Thereby,
+EdgeMoE differentiates the positions of experts and non-
+experts in the storage hierarchy (faster RAM vs. larger Disk).
+Specifically, it permanently hosts all hot weights in memory
+since they are used per-token inference; while the rest of the
+memory budget is used as an expert buffer for the cold expert
+weights.
+0000–0000/00$00.00 © 2021 IEEE
+arXiv:2308.14352v2  [cs.LG]  7 Mar 2025
+IEEE TRANSACTIONS ON MOBILE COMPUTING 2
+With the expert buffer design, EdgeMoE only needs to
+load the activated experts on demand from storage to memory.
+However, this I/O overhead is still significant as compared to
+processing, e.g., up to 4.1 × delay on Jetson TX2, as will be
+shown in §II-A. To address this issue, there are two general
+approaches: one is to directly reduce the I/O data, e.g., by
+quantizations [22], [38], [61], [63], [88], [94]; another one is
+to pipeline the I/O with computing to hide its latency [43].
+While both directions have been well studied, adopting them
+in MoE models faces unique challenges: (1) Sophisticated
+quantization algorithms [18], [50], [95] achieve higher com-
+pression ratio, yet incurring significant pre-processing time
+for deserialization and decompression as discussed in §III-B.
+More vanilla quantizations [44], on the other hand, cannot
+effectively reduce the expert’s I/O. (2) Unlike static models
+that have a fixed pre-determined execution pattern, experts in
+MoE are dynamically activated and the system cannot derive
+a priori knowledge until the router functions. As such, there
+is no room for EdgeMoE to pre-load a to-be-activated expert.
+Disregarding the knowledge of expert activation, one might
+simply cache the experts that are more frequently activated
+to increase the expert hit ratio; however, this approach brings
+limited benefit since the activation frequency across experts is
+purposely trained to be balanced [34].
+In response, EdgeMoE proposes two novel designs.
+Expert-wise bitwidth adaptation. EdgeMoE augments
+a preprocessing-lightweight quantization method, per-channel
+linear quantization [51], with expert-level bitwidth adaptation.
+It is based on a crucial observation that experts across different
+layers or even in the same layer exhibit different impacts on
+model accuracy after being quantized. Therefore, EdgeMoE
+employs a fine-grained, expert-wise bitwidth adaptation to
+fully leverage the model redundancy. At offline, EdgeMoE
+progressively lower the bitwidth of a few experts that are most
+robust to quantization, till the accuracy degradation meets a
+tolerable threshold specified by users. The selection of which
+experts to further quantize also jointly considers how much
+the lower-bitwidth quantization could boost inference speed.
+Ultimately, EdgeMoE obtains a mixed-precision model that
+achieves the target accuracy with the smallest possible model
+size, i.e., the fastest loading time.
+In-memory expert management. To enable the I/O-
+compute pipeline, EdgeMoE predicts which expert will be
+activated before its router functions. The design is motivated
+by a novel observation: the expert activation paths (i.e., the set
+of sequentially activated experts per token) taken in practice
+are highly unbalanced and skewed. It indicates significant
+correlations between expert activations, as further confirmed
+by our experiments in §III-C1. Therefore, during the offline
+phase, EdgeMoE builds a statistic model to estimate the
+probability of expert activation in the current layer based
+on the activations of previous layers. In online inference,
+EdgeMoE queries this model and preloads the most possible
+expert ahead of activation for the I/O-compute pipeline. Addi-
+tionally, EdgeMoE designs a novel cache eviction policy for
+the expert buffer, leveraging both the activation frequency and
+their relative positions to the current execution. Overall, both
+the predict-then-preload and the eviction techniques maximize
+the expert cache hit ratio when they are activated.
+Results We’ve implemented a prototype of EdgeMoE atop
+PyTorch that fully realizes the above techniques. It takes a
+memory budget and a tolerable accuracy loss as input from
+developers and automatically optimizes execution latency. We
+then perform extensive experiments to evaluate EdgeMoE’s
+performance through 7 MoE-based LLMs and 2 embedded
+platforms including Raspberry Pi 4B (CPU) and Jetson TX2
+(GPU). Compared to holding the whole model in device mem-
+ory, EdgeMoE reduces memory footprint by 1.05 ×–1.18×;
+compared to memory-optimized baselines such as dynamically
+loading expert and STI [43], EdgeMoE achieves 1.19 ×–
+2.77× inference speedup. For the first time, EdgeMoE enables
+fast inference for >10B-sized LLMs on COTS edge devices
+like Jetson TX2 with negligible accuracy loss ( ≤2%). The
+ablation study further shows that each individual technique of
+EdgeMoE contributes to significant improvements.
+Contributions The paper makes following contributions:
+• We perform preliminary experiments to demystify the per-
+formance of MoE LLMs on edge devices and analyze the
+implications.
+• We present EdgeMoE, an on-device MoE engine with one
+key design that treats memory as a cache for experts that
+are held in external storage when not activated.
+• We further incorporate two novel techniques, namely expert-
+wise bitwidth adaptation and in-memory expert manage-
+ment, to reduce the expert I/O overhead of EdgeMoE.
+• We demonstrate the effectiveness of EdgeMoE through
+extensive experiments.
+II. P ILOT EXPERIMENTS AND ANALYSIS
+A. A Primer on LLM with Mixture-of-Experts
+This work focuses on encoder-decoder 1, one of the most
+popular LLM architectures nowadays. The encoder processes
+the input sequence and compresses this information into a con-
+tinuous intermediate representation, while the decoder takes
+this representation and generates (predicts) an output sequence.
+A unique characteristic of the decoder is that it generates
+tokens in an autoregressive manner, i.e., appending the last
+output token to the end of the input sequence when generating
+the next token (token-wise dependency). Figure 1(a) illustrates
+a simplified computation and dataflow graph of the LLM
+inference process with three Transformer layers. Both encoder
+and decoder are underpinned by Transformer layers [84],
+each consisting of a set of attention heads (for extracting
+word-pair relationships), FFNs (for processing and enhancing
+information representation with non-linearity), and other minor
+operators, as shown in Figure 1(b).
+A recent trend is to deploy sparse FFNs – a set of “experts”
+which is selected at runtime via small-sized, offline-trained
+“routers”, as illustrated in Figure 1(c). As a result, MoE ar-
+chitecture can scale the model parameter size with sublinearly
+increased computing complexity. This is because only a fixed
+set (typically 1 or 2) of experts/weights will be activated for
+each token. For instance, GLaM [31], an MoE-based LLM,
+1Decoder-only LLMs like GPTs [20], [33], [71]–[74] can be treated as a
+special case of encoder-decoder therefore is also supported by our system.
+IEEE TRANSACTIONS ON MOBILE COMPUTING 3
+E1 E1 E1
+Let’s go to
+D1 D1
+gym
+E2 E2 E2 D2 D2
+E3 E3 E3 D3 D3
+1
+2
+3
+4
+5
+6
+7
+8
+9
+Encoder 
+embedding gym tonight
+E/D Encoder/Decoder layer
+1 2 Execution orderX
+Self-Attention
+Add + Normalize
+Dense FFN
+Add + Normalize
+input
+output
+Self-Attention
+Add + Normalize
+Sparse FFN
+Add + Normalize
+input
+output
+Expert 
+#1
+Expert 
+#2
+Expert 
+#3 …
+Router
+Expert = FFN
+(a) The computation/data flow of a typical encoder-decoder 
+architecture. The graph does not depict layers other than 
+Transformer layers such as embedding for simplicity.
+(b) The traditional (dense) 
+Transformer layer.
+(c) The sparse Transformer layer with 
+mixture-of-experts (MoE).
+“”
+D1
+tonight
+D2
+D3
+10
+11
+12
+<EOS>
+Fig. 1: Illustrations for the inference procedure of a typical encoder-decoder language model, as well as the dense and sparse
+MoE-enabled Transformer layer architecture. In (a): The Transformer layers are executed in the order denoted by the numbers
+in the black circles, and the nodes that use the same set of model parameters (i.e., nodes representing the same layer) are filled
+with the same color.
+8 16 32 64 128
+# of experts
+4.9
+5.0
+5.1
+5.2
+5.3
+5.4
+5.5 T est loss
+(a) Test Loss
+8 16 32 64 128
+# of experts
+0
+5
+10
+15
+20
+25memory footprint(GB)
+experts weights
+non-experts weights (b) peak memory usage
+Fig. 2: The importance and cost in scaling up expert number.
+(left): with more experts per layer, the model accuracy contin-
+uously improves. Dataset: C4 [4]. Numbers are from Switch
+Transformers paper [35]. (right): with more experts per layer,
+the peak memory usage increases almost linearly.
+achieves considerably higher accuracy on NLP tasks than GPT-
+3 with only half of its computation cost. Mixtral-8x7B [47]
+also reports comparable performance to GPT-3.5 at only 10%
+runtime cost. Such parameter scalability makes MoE-based
+LLMs good candidates for edge devices in terms of their
+constrained computing capacity.
+B. On-device Sparse LLM Inference
+With great sparsity comes great model size. Sparsely scaled-
+out LLMs stress memory, the key resource on an edge device.
+To better understand their implications to an edge device,
+especially the memory/computation tradeoff and execution
+characteristics, we characterize the execution of Switch Trans-
+former [35](abbreviated as ST), one of the most popular MoE-
+based sparse LLMs by Google, on two Commercial Off-The-
+Shelf(COTS) SoCs Jetson TX2 and Raspberry Pi 4B. We make
+the following crucial observations as follows.
+ST-b8 ST-b16 ST-l128
+models
+0.0
+0.5
+1.0
+1.5Latency(s)
+I/O
+compute
+(a) Jetson TX2
+ST-b8 ST-b16 ST-l128
+models
+0.0
+2.0
+4.0
+6.0Latency(s)
+I/O
+compute (b) Raspberry Pi 4B
+Fig. 3: Per-token decoder’s inference time
+(1) Expert weights bloat device memory. While improving
+the model accuracy, the expert weights quickly bloat the model
+sizes as their number increases. Google has shown that by
+scaling up the expert number per FFN from 8 to 256, the model
+capacity continuously and remarkably improves [35]. How-
+ever, as shown in Figure 2, the increased number of experts
+leads to a huge peak memory footprint that is unaffordable by
+edge devices. For instance, Raspberry Pi 4B with 8GB memory
+can only hold the smallest Switch Transformers variant with
+8 experts per FFN. Consequently, the memory wall severely
+limits the scalability of MoE-based LLMs, which is crucial
+to its success. Note that even if the device memory is large
+enough (e.g. Jetson TX2 with 8GB RAM) to hold a whole
+model in memory, the large model size makes it a likely victim
+of OS memory management. The result is the model only can
+serve a few inferences before getting recycled.
+One might resort to a layer-by-layer swapping strategy [43]
+to handle memory inefficacy. However, due to the auto-
+regressive nature of LLMs, the whole model weights need
+to be loaded for decoding each token. As a result, the I/O
+loading time could be 30.9 × more than computing, making
+the inference extremely slow.
+(2) Experts weights are bulky but cold. For MoE-based
+Transformer models, the weight parameters of the expert
+networks in the MoE structure are called expert parameters,
+IEEE TRANSACTIONS ON MOBILE COMPUTING 4
+0 500 1000 1500 2000 2500
+path index
+0
+250
+500
+750
+1000frequency of path
+(a) ST-base-8
+0 1000 2000 3000 4000 5000
+path index
+0
+100
+200
+300
+400frequency of path (b) ST-base-16
+Fig. 4: The distribution of expert activation paths obtained on
+training dataset follows power law. Path index: the expert’s
+activation path sorted in descending order of frequency. Dats-
+sets: SAMsum, GLUE.
+and the other parameters are non-expert parameters. We find
+that most computations during inference reside in a small
+portion of weights (non-experts), while most of the weights
+(experts) contribute to a small portion of computations. This
+is attributed to the sparse activation nature of experts. Taking
+Switch Transformers base-16(abbreviated as ST-base-16, 16
+means each MoE layer contains 16 experts) as an instance,
+the experts contribute 86.5% of total memory usage while only
+26.4% of the computation.
+Intuitively, the above characteristics naturally fit the device
+storage hierarchy (faster RAM vs. larger Disk). Therefore,
+we could use a discriminative swapping strategy by holding
+all non-experts in memory but only swapping in/out experts
+between memory and disk. Specifically, an expert is loaded
+into memory only when it is activated by the router; once
+used, its memory is released immediately. In such a case,
+the memory usage could be as less as the size of all non-
+expert weights plus the size of one expert. Meanwhile, the
+I/O overhead is reduced to one expert’s weight per layer.
+(3) Expert weight computation vs I/O asymmetry. Un-
+fortunately, even loading one expert per layer significantly
+degrades the execution performance of MoEs. With the above
+discriminative swapping strategy, we find that the per-sample
+inference time (generating a whole sequence with multiple
+tokens) is slow on Jetson TX2 (e.g., more than 17secs on
+Jetson TX2 on average), and the decoding time dominates
+due to its autoregressive nature. We further break down the
+latency to the compute (inference) and I/O (experts loading) in
+Figure 3 and find that the latter contributes the most. Compared
+to an oracle case with infinite memory (so no experts I/O),
+the per-token decoding time is increased by 3.2 ×–3.9× and
+3.3×–3.8× on Jetson TX2 and Raspberry Pi 4B, respectively.
+(4) Compute/IO pipelining is hindered by the data depen-
+dency. One may further leverage the compute/IO parallelism
+and overlap the expert loading with weight computation,
+similar to STI [43]. However, we find such an approach
+unfeasible due to the following reasons.
+• Expert activation dependency. Unlike standard Transformer
+models targeted by STI, which sequentially preload layers,
+MoE Transformers only decide which experts to load when
+the prior layer finishes computation. Such expert-level acti-
+vation dependency prohibits the compute/IO pipeline.
+• Expert activation frequency. One might preload “hot” ex-
+perts with a higher chance to be activated into memory as
+a pipeline, i.e., a frequency-based cache strategy. However,
+we find such an approach not beneficial as the experts in
+the same layer have a similar chance to be activated, as
+demonstrated by our experiments depicted in Figure 8(left).
+Such a balanced activation phenomenon is not surprising,
+because the training mechanism designs it to be so to
+maximize the GPU usage at training time [35].
+(5) Expert activation path follows power law distribution.
+While the overall activation frequency of each single expert is
+well balanced, we find that the activation path, i.e., a vector of
+the activated experts of all transformer layers for a token, is
+highly skewed. Figure 4 depicts the distribution of activation
+path obtained on two MoE models and two datasets. It presents
+a power law distribution: the 20% most frequently activated
+paths contribute to more than 99% of the activation cases of
+all tokens. This observation implies that the expert activation
+across different layers could be non-iid, which drives us to
+a deeper analysis of the expert activation correlation later in
+§III-C.
+III. ED G EMOE DESIGN
+A. Overview
+System model EdgeMoE is the first execution engine to
+enable fast inference of large MoE Transformer model on an
+edge device. It supports general MoE Transformer models for
+interactive tasks such as text generation and summarization.
+EdgeMoE mainly optimizes for transformer decoder, since it
+dominates the end-to-end inference time of MoE models due
+to its autoregressive nature (e.g., up to 93% according to our
+experiments).
+EdgeMoE incarnates as a runtime library linked to user
+apps. Along with EdgeMoE, MoE LLMs with experts com-
+pressed into different bitwidths are also installed on an edge
+device. It is configured by two key parameters. First, a memory
+budget M, specified either by users or the OS. The budget
+ranges from 1.5GB–3GB, which is one to two orders of
+magnitude smaller than the existing MoE LLMs. The flexible
+constraint accommodates varying device memory and adapts
+to system memory pressure. Second, a tolerable accuracy loss
+P is chosen by the user. Based on the desired accuracy loss
+P , EdgeMoE tunes the individual bitwidths for the experts
+for constructing the model to be executed at run time. Note
+this is a soft goal because existing MoE LLMs are unable to
+provide accuracy guarantees.
+Upon user invocation, EdgeMoE first selects the model
+satisfiable to accuracy loss P and instantiates an expert
+preload/compute pipeline for reducing inference latency: it
+sequentially loads all non-expert weights by layers; depending
+on prior experts activated, it opportunistically loads the experts
+for the next layers, overlapped with the computation of current
+layers. As a result of the inference, EdgeMoE generates a set
+of predicted tokens (e.g. in text generation task) or a summary
+(e.g. in summarization task). EdgeMoE does not choose the
+bitwidths of experts at run-time, as it is difficult to predict the
+subsequent expert’s impact on the overall accuracy, making it
+impractical to select the globally optimal bitwidth distribution.
+IEEE TRANSACTIONS ON MOBILE COMPUTING 5
+Fig. 5: System architecture of EdgeMoE and workflow.
+During execution, EdgeMoE maintains two memory
+buffers: 1) an expert buffer used for managing and caching
+expert weights. It resides in memory along with EdgeMoE
+for supporting multiple rounds of inferences. 2) a working
+buffer that holds all intermediate results. It is only temporary
+and can be thrown away right after each inference finishes.
+The operation To use, EdgeMoE works in two main stages
+as shown in Figure 5.
+(1) Offline expert quantization ( §III-B). With an accuracy loss
+specified by the user (e.g. 5%) on a given task, EdgeMoE
+first preprocesses a pre-trained model offline: it profiles the
+expert importance (the sensitivity to model accuracy) and then
+quantizes the experts to different bitwidths based on their
+assessed importance. The resultant model comprises a set of
+experts with different bitwidths, even for those in the same
+transformer layer.
+(2) Online expert management ( §III-C). At run time,
+EdgeMoE instantiates a preload/compute pipeline and dynam-
+ically manages the experts between device memory and disk
+via an expert buffer. By leveraging the statistical profile of
+expert activation, EdgeMoE pre-determines which experts to
+fetch from disk prior to their router function and which to
+evict when the buffer is full.
+Applicability The EdgeMoE framework is generic and
+applicable to both decoder-only and encoder-only transformer
+architecture. It is compatible with both dynamic (e.g. Switch
+Transformers [35], GLaM [31]) and static routing (e.g. Hash
+layer [75], expert choice MoE [96]) MoE layers. Notably, in
+static routing layers, expert activation only depends on the
+original input tokens but not their hidden states. For such
+layers, EdgeMoE simply preloads experts as instructed by
+input tokens in the pipeline without prediction.
+The optimization of EdgeMoE is based on the sparsity of
+expert activation in the inference decoding stage of the MoE
+model, so it is suitable for accelerating the decoding stage of a
+single request. This is also the application scenario of the MoE
+Exp-only All
+quantize method
+0.00
+0.03
+0.05
+0.08
+0.10Rouge-2
+INT2
+INT4
+INT8
+FP32
+(a) ST-b-8, Xsum
+Exp-only All
+quantize method
+0.00
+0.10
+0.20Rouge-2
+INT2
+INT4
+INT8
+FP32 (b) ST-b-8, SAMsum
+Fig. 6: The accuracy (Rouge-2) of quantizing experts weight-
+s/all weights into INT2/4/8.
+Transformer model on edge devices such as mobile phones,
+such as using the MoE large language model for dialogue.
+However, for scenarios where the number of tokens in a single
+inference is greater than 1, which includes two scenarios:
+the prefiling stage and multiple input requests, EdgeMoE is
+not applicable. EdgeMoE can be used in combination with
+other efficiency optimization methods. For models with a large
+number of parameters and edge devices with poor computing
+performance, quantization can be adopted to optimize memory
+and computing speed.
+B. Expert-wise Quantization
+To fit the expert weights under a set memory budget M and
+to balance the compute/IO asymmetry, we opt for dictionary-
+based quantization [44], which works with unmodified pre-
+trained models; we do not use quantization-aware training
+(QAT) [63] to avoid retraining LLMs, which is tedious and
+expensive. While the quantization techniques are well-known,
+EdgeMoE is the first to apply them to individual experts and
+to exploit accuracy vs bitwidths tradeoffs.
+Choosing the algorithm. We surveyed a wide range of
+quantization techniques (e.g. Gaussian outlier-aware quanti-
+zation [95] and log-based quantization [18]) and have chosen
+channel-wise linear quantization [44] for its good accuracy and
+fast decompression time. As shown in Figure 6, quantizing all
+experts weights to 4-bit integers (INT4) incurs only 1.30%–
+1.44% accuracy degradation; on dataset SAMsum, the experts
+can be further quantized to 2-bit integers with only 5.82%
+loss, acceptable to our use. As shown in Figure 7(b), compared
+with other quantization techniques (e.g. Gaussian outlier-aware
+quantization [95]), channel-wise linear quantization is 1.1 ×–
+2.5× faster, attributed to its simplified decompression process
+as a straightforward linear mapping.
+Channel-wise linear quantization uniformly maps quantized
+integer values to the original float values using scaling factors.
+The scaling factor for each channel is determined by the
+maximum absolute value within that channel and the range
+expressible by the bitwidth. This method requires an additional
+channel of float16 type scale to be reserved. We have tested the
+same number of parameters on Jetson TX2. The dequantization
+time of channel-wise quantization is 2.7% of the pure IO
+loading time, which is almost negligible.
+Quantized weights are not meant to be used as-is, which
+is different from QAT [63]. Before use, we must decompress
+them, which is a mirror process of compression.
+IEEE TRANSACTIONS ON MOBILE COMPUTING 6
+Profiling expert importance. For experts, we quantize
+them into different bitwidths, e.g. INT2/4/8. The rationale
+is experts show different importance to model accuracy; we
+want the most important experts to have high-bitwidth, hence
+contributing to the model accuracy more positively. EdgeMoE
+regards an expert as more important if it leads to the most
+accuracy loss when being executed in lower bitwidths.
+To do so, EdgeMoE enumerates all experts, quantizes
+each to INT2, and profiles the resultant accuracy loss on
+different validation sets (e.g. ST-base-8). The results are shown
+as a heatmap in Figure 7(a). For instance, quantizing the
+1st expert to INT2 at 1st transformer block degrades the
+accuracy by 0.44%, while quantizing 2nd expert to the same
+precision causes 0.59% degradation. Therefore, the 2nd expert
+is more sensitive to quantization and more important to model
+accuracy. Such an observation is also backed up by prior
+literature [26] that finds that different experts tend to handle
+different tasks with various difficulty levels.
+As a result, EdgeMoE obtains the list of expert importance,
+which is sorted by the model accuracy when a corresponding
+expert is quantized into INT2. The list will be used for con-
+structing the runtime model, which we will shortly describe.
+Selecting expert-wise bitwidths. Based on the user-tolerable
+accuracy loss, EdgeMoE judiciously selects the bitwidths of
+individual experts offline as follows.
+• First, EdgeMoE decides a bitwidth bound for all experts
+of the model, which serves as a baseline for EdgeMoE to
+further tune. To do so, EdgeMoE enumerates through the
+available bitwidths (e.g. INT2/4/8 and FP32) for all experts
+and measures the model accuracy, respectively.EdgeMoE then
+sets the lower and upper bound of bitwidths to those whose
+accuracies closely approximate the tolerable accuracy loss.
+• Second, EdgeMoE tunes individually the bitwidth of experts
+based on the lower and upper bound of bitwidths. It starts
+with the top- K experts from the list obtained earlier. As
+they are less important, EdgeMoE quantizes them into lower
+bitwidth (i.e. INT2) while keeping the rest higher bitwidth (e.g.
+INT4). EdgeMoE then measures the accuracy of the resultant
+model. If its accuracy loss is still lower than the desired
+goal, which means the model can afford more lower-bitwidth
+experts, EdgeMoE follows the list to gradually increase the
+parameters K until the accuracy loss reaches the goal. Other-
+wise, EdgeMoE decreases the parameters K for reducing the
+accuracy loss, i.e. by lifting more experts to higher bitwidths.
+Through the above process, EdgeMoE obtains a model with
+mixed-precision experts, achieving a balance between accu-
+racy and storage. Notably, EdgeMoE’s choice of simplistic
+quantization algorithm implies that it is a training/finetuning-
+free approach, which is often regarded as a commendable
+advantage to LLM systems as it requires no training data.
+Non-expert weights quantization decision. Whether to
+quantize non-experts’ weights exhibits a sophisticated tradeoff:
+it reduces memory usage, therefore leaving a larger cache
+room for experts; meanwhile, it compromises model accuracy,
+therefore reducing the quantization space for experts given
+a tolerable accuracy loss. EdgeMoE simply iterates over a
+few common candidates (INT4/INT8/FP16/FP32) using GPTQ
+0 1 2 3 4 5 6 7
+expert index
+012345
+block index
+0.0065
+0.0060
+0.0055
+0.0050
+0.0045
+0.0040
+(a) Profiled expert importance
+2 4 8
+quantize bitwidth
+0
+5
+10
+15
+20decompress time(ms)
+Linear
+Gaussian (b) Measured decompression
+time
+Fig. 7: (a):The heatmap of accuracy loss. Each element in
+the heatmap represents the accuracy loss of the model when
+the expert parameter is quantified as INT2 and other expert
+parameters are quantified as INT4. For example, the first
+row and first column represent the accuracy loss when the
+first expert parameter of the first MoE layer of the model
+is quantized to INT2, while the other expert parameters are
+quantized to INT4. Model: ST-base-8. Dataset: SAMsum. Ac-
+curacy: Rouge-2. (b):The decompression time of channel-wise
+linear quantization and gaussian outlier-aware quantization.
+The decompression time is measured on Jetson TX2.
+1 2 3 4 5 6 7 8
+Experts at Layer#3
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Experts Activation Freq. 
+ at layer#3
+87.1%
+54.3%
+31.5%
+No pre-activated Exp.
+Exp. #1.3 + Exp. #2.1
+Exp. #1.4 + Exp. #2.4
+0 1 2 3
+# of known pre-activated experts 
+ in the same token
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+T otal Activation Freq. 
+ of T op-k Experts at layer#4
+93.1%
+83.3%
+Decoder top-1
+Decoder top-2
+Encoder top-1
+Encoder top-2
+Fig. 8: Measurement results that demonstrate the expert activa-
+tion correlation. (Left) The activation frequency of 8 experts at
+the 3rd decoder layer with and without knowing the activated
+experts at its first 2 layers. “Exp #X.Y” indicates No.Y expert
+at Xth layer is activated. (Right) The accumulative activation
+frequency of the top-k experts by knowing different numbers
+of pre-activated experts at earlier layers in the same token.
+Model: ST-base-8; Dataset: SAMsum.
+algorithm [38] to find out the one that exhibits the best
+performance. Empirically, we find that non-experts’ weights
+tend to be preserved at high fidelity (e.g., FP16) as they are
+activated during each inference.
+Complexity analysis. The offline phase of EdgeMoE is
+dictated by the preset accuracy loss, as it requires iteratively
+enumerating various bitwidth configurations and dynamically
+adjusting expert assignments until the model’s accuracy drop
+meets the threshold. Meanwhile, the online phase merely ap-
+plies the tuned configuration for parameter selection, incurring
+a much lower computational overhead and thereby satisfying
+real-time inference requirements.
+C. In-memory Expert Management
+1) Preloading and pipeline: To overlap the expert loading
+with weight computation, we must predict the expert activation
+IEEE TRANSACTIONS ON MOBILE COMPUTING 7
+(a) w/o preload
+(c) preload failed
+(b) preload succeed
+1
+1
+2
+2
+3
+3 4
+4
+5
+5
+6
+6
+1
+1
+2
+2
+3
+3
+4 5 6
+1 2 3 4 5 6
+2 3 4 5 6
+2 3 4 5 6
+1 2 3 4 5 6
+4 5 63 4 5 6
+compute
+IO
+compute
+IO
+compute
+IO
+load compute-expert compute-nonexpert
+Time
+preload
+Fig. 9: The pipeline scheduling for 1-token inference. (a): Do
+not preload the next expert selection; (b): Predict all expert
+selections successful; (c): Predict all expert selection failed,
+which is the worst-case scenario.
+beforehand, instead of passively waiting for the router output
+of previous MoE layers.
+Estimating expert activation a priori. How to predict
+expert activation? We exploit a key observation that the expert
+activations of sequential layers are statistically correlated. That
+is to say, given the prior knowledge of expert activations of
+0..n − 1 layers, we can estimate the activation probability of
+each expert at n−th layer with good confidence, formulated as
+P (En = i|E0, E1, ..., En−1) where i is the index of the expert
+and n is the layer index. To demonstrate such a correlation,
+we analyze the expert activations running the ST-base-8 model
+on the SAMSum dataset. As shown in Figure 8 (left), with
+two previous layers’ activations observed, at layer 3 there is
+a high probability (87.1%) that No.5 expert will be activated,
+i.e., P (E3 = 5|E1 = 3, E2 = 1) = 87.1%. Figure 8(right)
+further confirms this observation by statistically summarizing
+across different activation paths.
+Opportunistic preloading. EdgeMoE exploits the previous
+observation for opportunistically preloading the expert weights
+and executing the pipeline as follows. In the offline phase,
+based on the previous observation EdgeMoE executes the
+model on multiple datasets to build the statistical profile
+of expert activations. To this end, EdgeMoE generates a
+dictionary, wherein the key denotes the activation status of
+experts from two previous consecutive MoE layers, and the
+value represents the probabilities of individual experts being
+activated in the subsequent MoE layer. The statistical profile
+is then stored for utilization in online inference.
+In the online phase, before each MoE layer routing,
+EdgeMoE employs the activation statuses of experts in the
+previous layers as the key for querying the statistical profile.
+Then, it sequentially preloads the experts to experts buffer
+(if not present) prioritized with their estimated activation
+probability. The preloading stops until the router is finished
+and the real activated expert is thereby known. In practice,
+EdgeMoE can preload 1–3 experts in each layer for the
+pipeline, depending on the compute-I/O speedup gap.
+The pipeline scheduling. EdgeMoE instantiates a preload-
+/compute parallelism: it executes the computations within the
+current transformer block and the preloading of the subsequent
+transformer block in parallel, based on the prediction made by
+the statistical profile. Figure 9 elucidates the pipeline schedul-
+ing for situations where prediction is both successful/failed.
+When EdgeMoE accurately forecasts the activation of the next
+MoE layer’s expert which is a common case, it significantly
+reduces the end-to-end inference delay, hiding the loading time
+under computation. As a worst-case scenario (which we have
+never observed), when all predictions fail, the inference time
+is only as long as loading experts on demand.
+2) Cache eviction policy: EdgeMoE maintains a cache for
+expert weights in memory, sized by the memory budget M.
+Once an in-cache expert is activated, the weights are directly
+fetched from the buffer, i.e., a cache hit. Otherwise, EdgeMoE
+needs to fetch the expert from disk and evict an old expert
+when the cache is full. The cache eviction policy – determining
+which expert to evict, is crucial to EdgeMoE performance
+since wrongly evicting an expert that will be used shortly
+causes significant I/O overhead.
+Classic cache policies like FIFO/LRU/LFU are designed for
+operating systems, mainly based on the data access history and
+frequency. EdgeMoE leverages the expert activation frequency
+as well, yet incorporates another unique opportunity: since
+LLMs are built with sequentially stacked transformer layers,
+each expert’s activation timing co-relates with its position (i.e.,
+layer index). Specifically, if an expert resides in a layer that is
+going to be executed soon, it shall be endowed with a higher
+score for not being evicted.
+Based on this heuristic, EdgeMoE’s eviction policy consid-
+ers both the frequency of expert usage and the MoE layer
+index. The key idea is to give priority to the eviction of
+experts stored in the buffer with lower usage frequency and
+those whose layers are farther away from the current block.We
+formulate the eviction policy as follows. For the j-th expert
+at i-th MoE layer, we define its eviction score as Li,j:
+Li,j = − fi,j(S − i + I) mod S
+where I is the index of current MoE layer, fi,j is the frequency
+of the j-th expert activated in the i-th MoE layer. And S
+indicates the size of MoE layers in this model’s decoder.
+Therefore, the higher the score L is, the more likely the
+expert will be evicted. For the experts within the encoder,
+we set the frequency fi,j to 0. The reason is these experts
+are loaded only once after re-batching, so they should be
+prioritized for eviction. When initializing the expert buffer,
+we load encoder expert weights sequentially. For encoder-only
+models, the expert buffer is initialized with the experts having
+the highest frequency of usage.
+IV. E VALUATION
+A. Implementation and Methodology
+EdgeMoE prototype We’ve fully implemented a prototype of
+EdgeMoE with 1K Python LoC atop transformers. We used
+Pytorch as the transformers’ backend and CUDA backend for
+its more generic support for different platforms. We will use a
+separate thread independent of the computing (main thread) for
+preloading. To prevent this IO-intensive thread from seizing
+IEEE TRANSACTIONS ON MOBILE COMPUTING 8
+Model Type EnM/En DeM/De Exp. K Params. olT(min)
+ST-b-8 en-de 6/12 6/12 8 1 0.4B 7.7
+ST-b-16 en-de 6/12 6/12 16 1 0.9B 9.4
+ST-b-32 en-de 6/12 6/12 32 1 1.8B 13.2
+ST-b-64 en-de 6/12 6/12 32 1 3.5B 19.5
+ST-b-128 en-de 6/12 6/12 128 1 7.1B 23.3
+ST-l-128 en-de 12/24 12/24 128 1 26B 28.7
+GPTSAN de 0/0 9/9 16 2 0.6B 8.2
+TABLE I: MoE models used in experiments. ”ST-b-X”: Switch
+Transformers base model with X experts per MoE layer. ”ST-l-
+X”: Switch Transformers large model with X experts per MoE
+layer. ”En”: number of encoders; ”De”: number of decoders;
+”EnM”: number of MoE layers in encoders; ”DeM”: number
+of MoE layers in decoders. ”Exp.”: number of experts in each
+MoE layer; ”K”: top-k experts in each MoE layer; ”Params.”:
+number of parameters; ”olT.”: average off-line time (min).
+the computing resources of the computing thread, it is bound
+to the small cores of the CPU. Since the GPU on Jetson TX2
+performs dequantization more slowly than the CPU, we handle
+it on the CPU instead. We defined a map to represent the
+expert’s buffer. At the same time, for smartphone execution,
+we implemented EdgeMoE in the self-developed C++-based
+large language model inference engine mllm [92]. Note that
+the techniques of EdgeMoE are also compatible with other
+DL libraries.
+Models We use 7 popular MoE-based sparse LLMs as sum-
+marized in Table I to test the performance of EdgeMoE.
+Most of these models are based on Switch Transformers [35]
+architecture in encoder-decoder structure with top-1 routing,
+i.e., only 1 expert is activated per layer. Besides, GPTSAN [7]
+has a decoder-only structure and works as a shifted Masked
+Language Model for Prefix Input tokens. It uses top-2 routing.
+We obtain the pre-trained models from Hugging Face. [8].
+Datasets We evaluate EdgeMoE with three NLP downstream
+datasets: (1) Xsum Dataset [16]: Comprising a substantial col-
+lection of 226,711 news articles, each accompanied by a con-
+cise one-sentence summary. (2) SAMsum Dataset [11]: This
+dataset features approximately 16,000 conversation transcripts,
+reminiscent of messenger exchanges, along with correspond-
+ing summaries. (3) Wikipedia-jp Dataset [14]: This extensive
+dataset encompasses the entire corpus of Japanese Wikipedia
+articles as of August 8, 2022. Datasets Xsum and SAMsum
+are specifically employed for the summarization task, where
+the objective is to generate a summary of the input content. We
+evaluated the performance of the Switch Transformers model
+on these datasets. Conversely, the Wikipedia-jp dataset serves
+as the foundation for text generation tasks. We assessed the
+capabilities of GPTSAN in text generation tasks using this
+dataset.
+Metrics We mainly report the model accuracy, inference
+speed (per token and sequence), peak memory footprint, and
+model size of EdgeMoE and baselines. To assess model
+accuracy, we use the Rouge-2 metric [60] in our experiments.
+It comprises a collection of metrics designed for the evaluation
+of automatic summarization and text generation tasks. In the
+context of summarization, Rouge-2 quantifies similarity by
+comparing automatically generated abstracts with a reference
+set of abstracts, typically manually crafted.
+Hardware We evaluate EdgeMoE on two prominent edge
+devices: the Jetson TX2 (GPU) and the Raspberry Pi 4B
+(CPU). Both the Jetson TX2 [6] and Raspberry Pi 4B [10] run
+Ubuntu 18.04 as their operating system. Since MoE LLMs are
+large, we need external storage to hold them. For Raspberry
+Pi 4B, we use SDCards (SanDisk Ultra 128GB [13]); for
+Jetson TX2, we use two types of hard drives, namely SSD
+(default) and HDD. The SSD model is SAMSUNG 860
+EVO [12], boasting a read/write speed of 550/520 MB/s.
+and HDD model is MOVE SPEED YSUTSJ-64G2S [9] who
+provide a read/write speed of 50/20 MB/s. The offline stage
+of EdgeMoE to generate a quantized MoE is performed on a
+GPU server equipped with 8x NVIDIA A40.
+Baselines We compare EdgeMoE with four baselines. (1)
+IO-FREE assumes all model weights are held in memory
+so no swapping I/O is needed. This is the most computa-
+tionally efficient approach but is not scalable due to memory
+constraints. (2) IO-QFREE quantizes the parameters of the
+model into INT8 using hannel-wise linear quantization and
+loads the parameters and executes in the way of IO-FREE.
+The quantization is achieved through Quanto [2]. (3) IO-EXP
+treats memory as a cache for experts and dynamically loads
+them once activated, similar to EdgeMoE. (4) IO-QEXP
+combines the above method with MoQE [51] to quantize
+experts weights into INT4 and dynamically loading them
+during inference. Alike EdgeMoE, the quantized weights need
+to be converted back to FP32 for fast inference on device
+processors. (5) STI minimizes inference accuracy by model
+sharding and instantiates an IO/compute pipeline under a tight
+memory budget [43]. It does not differentiate the weights for
+experts and non-experts. For a fair comparison, we adjust the
+size of the buffer for preload shards so that STI and EdgeMoE
+have the same memory footprint.
+Configurations If not otherwise specified, we set the expert
+buffer of EdgeMoE to 10 × experts; the tolerable accuracy
+loss is 2%. Each experiment is conducted systematically with
+multiple repetitions, and the reported values are based on their
+respective averages.
+B. End-to-end Results
+Memory footprint. We conducted a memory footprint
+evaluation of EdgeMoE and the baselines on edge devices.
+The results are shown in Figure 10. EdgeMoE significantly
+outperforms the baselines across all models and platforms,
+achieving memory savings ranging from 2.1 × to 38.6× com-
+pared to IO-FREE, and 0.8 × to 24.3 × compared to IO-
+QFREE. This improvement can be attributed to EdgeMoE’s
+efficient management of inactive expert weights and activa-
+tions. Additionally, EdgeMoE dynamically loads and caches
+activated expert weights in memory to reduce memory foot-
+print.
+In contrast, EdgeMoE exhibits a memory footprint similar
+to that of IO-EXP and IO-QEXP. Since these two baselines do
+not require caching prior expert weights, EdgeMoE incurs a
+slightly higher memory footprint in comparison. For example,
+when the expert buffer is set to 10 × the expert’s memory
+footprint, ST-base models consume approximately 180MB
+more memory than IO-EXP and IO-QEXP. According to the
+IEEE TRANSACTIONS ON MOBILE COMPUTING 9
+ST-b-8
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+memory footprint(GB)
+ST-b-16
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+ST-b-32
+0
+1
+2
+3
+4
+5
+6
+7
+ST-b-64
+0
+2
+4
+6
+8
+10
+IO-FREE IO-QFREE IO-EXP IO-QEXP STI Our
+ST-b-128
+0
+5
+10
+15
+20
+ST-l-128
+0
+10
+20
+30
+40
+50
+GPTSAN
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+Fig. 10: The memory footprint of EdgeMoE and baselines.
+ST-b-8
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+Latency(s)
+ST-b-16
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+ST-b-32
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+ST-b-64
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+X
+IO-FREE IO-QFREE IO-EXP IO-QEXP STI Our
+ST-b-128
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+0.6
+0.7
+X X
+ST-l-128
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+1.2
+X X
+GPTSAN
+0.0
+0.2
+0.4
+0.6
+0.8
+(a) Jetson TX2
+ST-b-8
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+Latency(s)
+ST-b-16
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+ST-b-32
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+ST-b-64
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+X
+IO-FREE IO-QFREE IO-EXP IO-QEXP STI Our
+ST-b-128
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+X X
+ST-l-128
+0
+1
+2
+3
+4
+5
+6
+X X
+GPTSAN
+0
+1
+2
+3
+4
+(b) Raspberry Pi 4B
+ST-b-8
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+Latency(s)
+ST-b-16
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+ST-b-32
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+ST-b-64
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+X
+IO-FREE IO-QFREE IO-EXP IO-QEXP STI Our
+ST-b-128
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+3.5
+4.0
+X X
+ST-l-128
+0
+1
+2
+3
+4
+5
+6
+7
+8
+X X
+GPTSAN
+0
+1
+2
+3
+4
+5
+6
+(c) Jetson TX2 - HDD
+Fig. 11: Time Per Output Token (TPOT) of EdgeMoE and baselines in edge devices. The baseline with a red ”X” symbol
+above the bars could not be accommodated within the memory constraints of the target hardware. The height of the bars
+represents the theoretically predicted values. ”ST” is the abbreviation of Switch Transformers. ”b” is the abbreviation of base,
+and ”l” is the abbreviation of large. For example, ”ST-b-8” represents Switch Transformers base-8.
+0 10 20 30 40 50
+inference latency(s)
+0.00
+0.25
+0.50
+0.75
+1.00probability
+Our
+IO-EXP
+IO-QEXP
+STI
+(a) Jetson TX2
+0 50 100 150 200
+inference latency(s)
+0.00
+0.25
+0.50
+0.75
+1.00probability
+Our
+IO-EXP
+IO-QEXP
+STI (b) Raspberry Pi 4B
+Fig. 12: The cumulative distribution function (CDF) of per-
+sample inference latency. Model:ST-base-8.
+settings outlined in §IV-A, the baseline STI shares the same
+memory footprint as EdgeMoE.
+Time Per Output Token. Figure 11 compares end-to-end
+Time Per Output Token(TPOT) between EdgeMoE and the
+baselines on edge devices. The weights decompression costs
+are contained in the latency. The results highlight a significant
+performance improvement achieved by EdgeMoE across all
+models and platforms. In Jetson TX2, EdgeMoE demonstrates
+a speedup ranging from 2.64 × to 3.03× compared to IO-EXP,
+and in Raspberry Pi 4B, the speedup ranges from 2.55 × to
+3.25×. This notable performance gain can be attributed to
+several key factors. Firstly, EdgeMoE employs weight quanti-
+zation for the experts, effectively reducing loading latency. Ad-
+ditionally, EdgeMoE adopts an efficient strategy for preload-
+ing expert weights, intelligently overlapping this preloading
+process with computation, thereby effectively masking most
+of the latency. Consequently, EdgeMoE achieves a commend-
+able speedup of 1.19 ×–2.12× compared to IO-QEXP and
+1.22×–2.77× inference speedup over STI. EdgeMoE has an
+advantage over STI in TPOT. STI’s technology is independent
+IEEE TRANSACTIONS ON MOBILE COMPUTING 10
+of the model structure and does not utilize the feature that
+only some expert parameters of the MoE model are activated
+during inference. So, all parameters are dynamically loaded
+during inference, which leads to a lot of time spent loading
+parameters of unactivated expert parameters.
+However, a performance gap still exists between EdgeMoE
+and IO-FREE because EdgeMoE’s preloading stage doesn’t
+always predict which expert to activate for the next MoE layer.
+Some experts still need to be loaded dynamically. On Jetson
+TX2 (GPU), IO-QFREE has higher latency than EdgeMoE,
+but on Raspberry Pi (CPU), IO-QFREE is faster. This may be
+because the Jetson TX2 GPU is outdated, and its int-to-float
+inverse quantization process is slow.
+Impact of IO speed Figure 11 also compares per-token
+inference latency between SSD and HDD on Jetson TX2.
+Notably, EdgeMoE achieves a higher acceleration rate on
+lower-cost HDDs compared to SSDs, especially when com-
+pared to baselines IO-EXP. For example, compared to IO-EXP,
+EdgeMoE achieves a speedup ranging from 4.49 × to 4.76 ×
+on HDDs and from 2.63 × to 3.01× on SSDs. This difference
+is due to the relatively slower read speeds of HDDs, resulting
+in longer expert weight loading times compared to SSDs.
+EdgeMoE demonstrates a more significant improvement in
+expert loading, leading to a more pronounced enhancement in
+per-token inference latency.
+Per-sample inference latency. We also evaluate the per-
+sample inference latency of EdgeMoE compared to the base-
+lines on both Jetson TX2 and Raspberry Pi 4B. The cumu-
+lative distribution function (CDF) for the ST-base-8 model
+is depicted in Figure 12. The results show that EdgeMoE
+consistently outperforms the baselines. For instance, on the
+Raspberry Pi 4B, 50% of the samples processed by EdgeMoE
+exhibit a latency of less than 46 seconds, whereas with IO-
+EXP, 50% of the samples experience a latency of less than 106
+seconds. Same as Per-token inference latency, the performance
+gap still exists between EdgeMoE and IO-FREE.
+Offline profiling/quantization time. In the offline stage,
+EdgeMoE profiles and explores the per-expert quantization de-
+sign space. We utilized a dataset which contains 410 instance
+from Xsum and 409 instance from SAMsum, with a batch
+size set to 8. As shown in Table I (last column), the offline
+stage can be completed within half an hour, demonstrating an
+acceptable overhead offline.
+baseline Storage(GB) Loss(%) Rouge-2
+IO-FREE 2.43 0.00 0.221
+IO-EXP 2.53 0.00 0.221
+IO-QEXP 0.85 2.04 0.215
+STI 0.85 20.0 0.176
+Our 0.81 0.89 0.219
+(a) ST-base-8
+baseline Storage(GB) Loss(%) Rouge-2
+IO-FREE 4.12 0.00 0.245
+IO-EXP 4.12 0.00 0.245
+IO-QEXP 1.03 3.15 0.237
+STI 1.03 25.1 0.183
+Our 0.95 1.95 0.240
+(b) ST-base-16
+TABLE II: The storage and accuracy (Rouge-2) loss of
+EdgeMoE and baselines. ”Loss” indicates accuracy loss.
+Storage. We also compared the storage requirements of
+EdgeMoE and the baselines while measuring their accuracy
+loss. Table II presents the experimental results for ST-base-8
+and ST-base-16. Notably, EdgeMoE significantly outperforms
+the baselines in terms of storage, achieving a 3.03 × im-
+provement over IO-FREE and a 1.11 × improvement over IO-
+ST-b-8 ST-b-16 ST-b-32
+model name
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+6.0
+7.0
+Energy(J)
+IO-FREE IO-EXP Our
+(a) Jetson TX2
+ST-b-8 ST-b-16 ST-b-32
+model name
+0.0
+2.5
+5.0
+7.5
+10.0
+12.5
+15.0
+Energy(J)
+IO-FREE IO-EXP Our (b) Raspberry Pi 4B
+Fig. 13: The energy cost of per-token inference.
+1 5 10 15 20
+# of experts
+0.2
+0.4
+0.6Cache hit ratio
+Random
+FIFO
+LRU
+LFU
+Our
+(a) ST-base-8
+1 5 10 15 20
+# of experts
+0.2
+0.3
+0.4Cache hit ratio
+Random
+FIFO
+LRU
+LFU
+Our (b) ST-base-16
+Fig. 14: Cache hit ratio for 5 cache eviction policy. ”# of
+experts” indicates the number of experts can be saved in expert
+buffer.
+QEXP for ST-base-8. This superiority stems from EdgeMoE’s
+utilization of a mixed-precision quantization method for expert
+weights.
+Accuracy. Furthermore, the accuracy loss aligns with our
+expectations. EdgeMoE exhibits an accuracy loss that closely
+approximates the tolerable 2% threshold. IO-FREE, IO-EXP,
+and IO-QEXP models similarly show accuracy losses consis-
+tent with their respective bitwidth configurations. Unlike the
+other baselines, STI quantizes both non-expert weights and
+expert weights, leading to a significant accuracy loss.
+In the Appendix A, we show two comparative examples of
+the results with or without using EdgeMoE. The model used
+is Switch Transformers base-8, and the task is ”summary”.
+Example 1 is a case with a poorer effect and it can be seen
+that the output of EdgeMoE is quite different from the original
+version. The quantization of the expert parameter causes all
+the accuracy errors. EdgeMoE will reload experts that were
+not predicted correctly, so there is no result error caused by
+loading the wrong expert
+Energy overhead. We measured the energy consumption
+of token inference on EdgeMoE across two edge devices
+and compared it with two baselines, IO-FREE and IO-EXP,
+as shown in Figure 13. Energy consumption is obtained
+by multiplying power by execution time. Compared to IO-
+FREE, EdgeMoE incurs, as small as 1.1%, on average 17%
+increase. The faster the storage is, the larger the model
+is, EdgeMoE’s energy overhead is smaller. The reason is
+inference is compute-intensive, where CPU/GPUs consume
+major energy.
+Cache eviction policy. We perform a comparative analysis
+of cache hit ratios between our novel cache eviction policy and
+other policies with varying expert buffer sizes. To mitigate
+IEEE TRANSACTIONS ON MOBILE COMPUTING 11
+0.0
+0.2
+0.4
+0.6
+0.8
+Latency(s)
+IO-FREE(q4)
+IO-QEXP(q4)
+Our(q4)
+(a) Latency
+0
+2
+4
+6
+8
+10
+Memory(GB)
+IO-FREE(q4)
+IO-QEXP(q4)
+Our(q4) (b) Memory
+Fig. 15: The experiments of EdgeMoE for MiniCPM MoE
+8x2B model and the baseline running on the Xiaomi 14
+mobile phone. The usage of TPOT and memory is respectively
+presented.
+the influence of preloading on the hit ratio, we disable the
+preloading functionality in these experiments. The results are
+shown in Figure 14. Our novel eviction policy exhibits superior
+efficacy compared to several other policies.
+Performance on Android mobile phones. We used the
+mllm [92], a C++-based large language model inference engine
+to implement EdgeMoE, supporting the MiniCPM MoE 8x2B
+model [17]. The smartphone we used in our experiment was
+Xiaomi 14, which has 16GB of RAM and Snapdragon 8Gen3
+SoC. EdgeMoE is orthogonal to model quantization works
+such as GPTQ and AWQ and can be used in a superimposed
+manner. This is because EdgeMoE only affects experts’ pa-
+rameters. Non-expert parameters can also be quantized. Above
+all, when conducting experiments on the mobile phone and
+applying EdgeMoE, we performed group quantization of non-
+expert parameters in groups of 32 as INT4, and executed it
+using 4 threads on 4 large CPU cores. Baseline data compared
+to EdgeMoE include IO-FREE and IO-QEXP.
+The experimental results are shown in Figure 15. It can be
+seen that on the mobile phone, compared to IO-FREE, 63%
+of memory usage is saved, and compared with IO-QEXP, the
+speed increases by 25%. The experimental effect of EdgeMoE
+on mobile phones is not as obvious as that on Jetson devices.
+The main reason is that the computing performance of the
+mobile phone chip is powerful and IO has become a bigger
+bottleneck.
+C. Sensitivity Analysis
+Memory(GB) Experts (Total 96)
+1.8 11
+2.0 22
+2.2 33
+3.2 96
+(a) ST-base-16
+Memory(GB) Experts (Total 320)
+4.0 40
+5.0 80
+6.0 120
+11.0 320
+(b) MiniCPM MoE 8x2B (q4)
+TABLE III: The upper limit of experts that can cached under
+different memory budgets. The test model of (a) is Switch
+Transformers base-8, the test device is Jetson TX2, and the
+non-expert parameters are not quantized. The test model of
+(b) is MiniCPM MoE 8x2B, the test device is the Xiaomi 14
+mobile phone, and the non-expert parameters are quantized to
+4 bits.
+Various memory budget. EdgeMoE adapts to various edge
+devices with diverse device memory sizes by tailoring the
+1.6 1.8 2.0 2.2 2.4
+memory buget(GB)
+0.25
+0.30
+0.35Latency(s)
+ST-base-8
+Ours
+IO-QEXP(int4)
+IO-QEXP(int2)
+2.0 2.5 3.0
+memory buget(GB)
+0.25
+0.30
+0.35
+ST-base-16
+Our
+IO-QEXP(int4)
+IO-QEXP(int2)
+(a) Jetson TX2
+1.6 1.8 2.0 2.2 2.4
+memory buget(GB)
+1.0
+1.2
+1.4
+1.6
+1.8Latency(s)
+ST-base-8
+Ours
+IO-QEXP(int4)
+IO-QEXP(int2)
+2.0 2.5 3.0
+memory buget(GB)
+1.0
+1.2
+1.4
+1.6
+1.8
+ST-base-16
+Our
+IO-QEXP(int4)
+IO-QEXP(int2)
+(b) Raspberry Pi 4B
+Fig. 16: Per-token inference latency(TPOT) of EdgeMoE and
+baselines under different memory budgets.
+5 10 15 20
+Accuracy loss(%) 
+800
+900
+1000
+1100Storage(MB)
+ST-base-8
+ST-base-16
+5 10 15 20
+Accuracy loss(%) 
+270
+280
+290Latency(ms)
+ST-base-8
+ST-base-16
+Fig. 17: The storage and latency of EdgeMoE in different
+desired accuracy loss. Models: ST-base-8 and ST-base-16.
+Hardware: Jetson TX2.
+expert buffer, based on the memory budget M (§III-C). In our
+experiments, we configured memory budgets from 1.6GB to
+3.5GB, reflecting real-world edge device memory profiles. We
+extensively evaluated EdgeMoE’s per-token inference latency
+compared to baselines across these memory budgets, and the
+results are shown in Figure 16. Notably, as the size of the
+expert buffer increases, inference latency decreases. This is
+because the expanded expert buffer can retain more previously
+activated expert weights, leading to higher cache hit ratios and
+saving weights loading time.
+Figure 16 compares EdgeMoE to IO-QEXP on two de-
+vices. The results consistently show that EdgeMoE has lower
+inference latency across all memory budget configurations
+compared to both INT4 and INT2 versions of IO-QEXP.
+The Table III shows the upper limit of the number of experts
+that can be cached under different memory limits. We tested
+the Swich Transformers base-8 model on Jetson TX2 and the
+MiniCPM MoE 8x2B model on Xiaomi 14 mobile phone.
+From the table, we can see that the number of experts that
+can be cached has a linear relationship with the memory limit.
+The cache buffer will be initialized in the way in §III-C2.
+Impact of tolerable accuracy loss. Figure 17 provides a
+comparison across different desired accuracy loss P . During
+these experiments, we evaluated inference latency and model
+storage across accuracy loss levels ranging from 2% to 20%
+IEEE TRANSACTIONS ON MOBILE COMPUTING 12
+on Jetson TX2, running ST-base-8 and ST-base-16 models.
+The results show accuracy loss scales with model sizes and
+inference latency. It confirms EdgeMoE effectively adapt to
+available resources (storage and latency) by tuning individual
+bitwidths of experts.
+baseline Rouge-2
+IO-FREE 0.221
+Our(Xsum) 0.220
+Our(SAMsum) 0.219
+(a) ST-base-8
+baseline Rouge-2
+IO-FREE 0.245
+Our(Xsum) 0.243
+Our(SAMsum) 0.240
+(b) ST-base-16
+baseline Winograde Helloswag MMLU PiQA
+IO-FREE 66.0 75.1 50.2 77.3
+Our(refinedweb) 65.8 74.8 49.1 77,2
+Our(c4) 64.8 74.3 48.9 77.1
+(c) MiniCPM MoE 8x2B
+TABLE IV: (a) and (b) show the accuracy (Rouge-2) of
+EdgeMoE and IO-FREE test Switch tramsformers base-8
+and base-16 models in Xsum dataset with different offline
+dataset. (c) shows the accuracy of EdgeMoE and IO-FREE
+test MiniCPM MoE 8x2B model in Winograde, Helloswag,
+MMLU and PiQA dataset with different offline dataset.
+”Our(Xsum)” means the dataset used in the offline stage is
+Xsum.
+Impact of the dataset used in the offline stage. We
+discussed the influence of the selected dataset in the offline
+stage on the model performance. We conducted experiments
+on the Switch tramsformers base-8 and base-16 models, using
+300 instances of Xsum or SAMsum dataset in the offline stage.
+And we tested it on Xsum datasets. We also conducted experi-
+ments on the MiniCPM MoE 8x2B model, with refinedweb or
+c4 dataset. The results are shown in the table IV. It can be seen
+that compared to the original model’s indicators, EdgeMoE
+has almost average 2% loss for accuracy.
+D. Ablation Study
+We then evaluate the benefits brought by EdgeMoE’s each
+key technique separately. The results of per-token inference
+latency and memory footprint evaluation are illustrated in
+Figure 18. Our major observation and memory footprint is
+that each of EdgeMoE’s key techniques contributes noticeably
+to the inference speedup. For example, with ST-base-8 and
+Jetson TX2, the expert-wise quantization first reduces the
+inference latency from 0.789s to 0.392s, memory from 2.5GB
+to 1.21GB. Preloading and pipeline further reduce the latency
+to 0.305s, memory to 0.78GB. Finally, by using expert buffer,
+the latency finally becomes 0.245s, and memory become
+0.81GB.
+V. R ELATED WORK
+DNN memory optimizations. Given that memory is a cru-
+cial and scarce resource of mobile devices, memory sav-
+ing has been an important research direction of the mobile
+community. For instance, Split-CNN [48] proposed splitting
+the weights of a single layer into multiple sub-windows,
+on which memory offloading and prefetching are applied to
+ST-b-8 ST-b-16 ST-b-32 ST-l-128 GPTSAN
+model name
+0.0
+0.2
+0.4
+0.6
+0.8
+Latency(s)
+None +Q +Q+P +Q+P+C
+(a) TPOT (Jetson TX2)
+ST-b-8 ST-b-16 ST-b-32 ST-l-128 GPTSAN
+model name
+0.0
+1.0
+2.0
+3.0
+4.0
+5.0
+6.0
+Latency(s)
+None +Q +Q+P +Q+P+C
+(b) TPOT (Raspberry Pi 4B)
+ST-b-8 ST-b-16 ST-b-32 ST-l-128 GPTSAN
+model name
+0.0
+2.0
+4.0
+6.0
+8.0
+10.0
+12.0
+14.0
+16.0
+Memory(GB)
+None +Q +Q+P +Q+P+C
+(c) Memory footprint
+Fig. 18: The ablation study results for TPOT and memory
+footprint of EdgeMoE. ”Q”: expert-wise quantization; ”P”:
+preloading and pipeline; ”C”: experts buffer.
+reduce activation memory and the weight memory. Melon [86]
+incorporates recomputation and micro-batch to deal with the
+high memory footprint and fragmentation during on-device
+training. SwapNN [67] enables large NNs on wimpy MCUs
+by carefully swapping weights between SRAM and external
+flash. EdgeMoE shares underlying rationales and techniques
+with them (quantization and swapping) but exploits unique
+opportunities of MoE architecture and proposes a novel expert-
+centric approach to memory saving.
+Systems for MoE models. Recent researches focused on
+efficient serving or training MoE-based LLMs [32], [36], [52],
+[76]. For instance, Edge-MoE [76] introduces an expert-by-
+expert computation to maximize the reuse of loaded experts.
+However, these systems are either optimized for distributed
+clouds or non-autoregressive models such as ViT [30]. X-
+MOE [25] have resolved the representation collapse issue in
+sparse mixture of experts models. TA-MoE [23] is a topology-
+aware routing strategy for large-scale MoE trainging, from a
+model-system co-design perspective, which can dynamically
+adjust the MoE dispatch pattern according to the network
+topology. Instead, EdgeMoE is a efficient mobile system
+that exploits unique opportunities to accelerate autoregressive
+inference of MoE-based LLMs.
+Resource-efficient LLMs. Research on resource-efficient
+IEEE TRANSACTIONS ON MOBILE COMPUTING 13
+LLMs has been active. Prior works have used methods such
+as knowledge distillation [41], [57], [80], [85], [87], [93],
+network pruning [37], [65], [79], quantization [22], [38], [61],
+[63], [88], [94], architecture design [29], [58], [64], [68],
+[69], [78], [91], efficient structure design [27], [28], and
+text compression [24], [42], [83] to achieve resource-efficient
+LLMs. EdgeMoE’s key designs are orthogonal to those work.
+On-device ML optimizations. There are two main categories
+of on-device DNN inference optimizations. One is at system
+level, e.g., by exploiting heterogeneous processors [21], [40],
+[45], [53], cache [66], [90], generating high-performance
+GPUs kernels [59], or adaptive offloading [54], [89]. The
+other is model level, e.g., quantization [49], [62] or sparsi-
+fiction [19], [70]. They reduce the execution time and/or the
+weights to be read from the disk. These works can optimize
+small ML models, but they cannot optimize large language
+models with running memory that is a hundred times greater
+than that of edge devices. EdgeMoE is built for resource-
+efficient MoE-based sparse LLMs and is orthogonal to them.
+VI. C ONCLUSIONS
+In this work, we propose EdgeMoE, the first on-device in-
+ference engine for mixture-of-expert (MoE) LLMs. EdgeMoE
+integrates two innovative techniques: expert-specific bitwidth
+adaptation, reducing expert sizes with acceptable accuracy
+loss, and expert preloading, which anticipates activated experts
+and preloads them using a compute-I/O pipeline. Extensive
+experiments demonstrate that EdgeMoE enables real-time
+inference for MoE LLMs on edge CPU and GPU platforms
+while maintaining tolerable accuracy loss.
+VII. A CKNOWLEDGMENT
+This work was supported by NSFC (U21B2016, 62032003,
+62425203), Fundamental Research Funds for the Central Uni-
+versities under Grant 2024ZCJH11. Liwei Guo was partly
+supported by Sichuan Science and Technology Plan “Unveil-
+ing and Leading” Project (No. 2024YFCY0001). Shiyun Wei
+and Ao Zhou are the corresponding authors. We thank the
+anonymous reviewers for their valuable suggestions.
+REFERENCES
+[1] Microsoft translator enhanced with z-code mixture of experts
+models. https://www .microsoft.com/en-us/research/blog/microsoft-
+translator-enhanced-with-z-code-mixture-of-experts-models/, 2022.
+[2] Quanto: a pytorch quantization backend for optimum. https://
+huggingface.co/blog/quanto-introduction, 2022.
+[3] Beating google and apple, huawei brings large ai model to mobile
+voice assistant - huawei central. https://www .huaweicentral.com/
+beating-google-and-apple-huawei-brings-large-ai-model-to-mobile-
+voice-assistant/, 2023.
+[4] c4 · datasets at hugging face. https://huggingface .co/datasets/c4, 2023.
+[5] Chatgpt - google play. https://play .google.com/store/apps/details?id=
+com.openai.chatgpt, 2023.
+[6] Jetson tx2 module — nvidia developer. https://developer .nvidia.com/
+embedded/jetson-tx2, 2023.
+[7] Model card for tanrei/gptsan-japanese. https://huggingface .co/Tanrei/
+GPTSAN-japanese, 2023.
+[8] Models - hugging face. https://huggingface .co/models, 2023.
+[9] Move speed usb2.0. http://www .movespeed.com/productinfo/
+1162939.html, 2023.
+[10] Raspberry pi 4 model b – raspberry pi. https://www .raspberrypi.com/
+products/raspberry-pi-4-model-b/2, 2023.
+[11] samsum · datasets at hugging face. https://huggingface .co/datasets/
+samsum, 2023.
+[12] Samsung 860 evo — consumer ssd — specs & features — samsung
+semiconductor global. https://semiconductor .samsung.com/consumer-
+storage/internal-ssd/860evo/, 2023.
+[13] Sandisk ultra® microsd, uhs-i card, full hd store — western dig-
+ital. https://www .westerndigital.com/products/memory-cards/sandisk-
+ultra-uhs-i-microsd#SDSQUNC-016G-AN6MA, 2023.
+[14] wikipedia-japanese · datasets at hugging face. https://huggingface .co/
+datasets/inarikami/wikipedia-japanese, 2023.
+[15] World’s 1st on-device stable diffusion on android — qual-
+comm. https://www .qualcomm.com/news/onq/2023/02/worlds-first-on-
+device-demonstration-of-stable-diffusion-on-android, 2023.
+[16] xsum · datasets at hugging face. https://huggingface .co/datasets/xsum,
+2023.
+[17] Minicpm-moe-8x2b. https://huggingface .co/openbmb/MiniCPM-MoE-
+8x2B, 2024.
+[18] Alham Fikri Aji and Kenneth Heafield. Compressing neural machine
+translation models with 4-bit precision. In Proceedings of the Fourth
+Workshop on Neural Generation and Translation , pages 35–42, 2020.
+[19] Sourav Bhattacharya and Nicholas D Lane. Sparsification and separation
+of deep learning layers for constrained resource inference on wearables.
+In Proceedings of the 14th ACM Conference on Embedded Network
+Sensor Systems CD-ROM , pages 176–189, 2016.
+[20] Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D
+Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish
+Sastry, Amanda Askell, et al. Language models are few-shot learners.
+Advances in neural information processing systems , 33:1877–1901,
+2020.
+[21] Qingqing Cao, Niranjan Balasubramanian, and Aruna Balasubramanian.
+Mobirnn: Efficient recurrent neural network execution on mobile gpu.
+In Proceedings of the 1st International Workshop on Deep Learning for
+Mobile Systems and Applications , pages 1–6, 2017.
+[22] Jerry Chee, Yaohui Cai, V olodymyr Kuleshov, and Christopher De Sa.
+Quip: 2-bit quantization of large language models with guarantees. arXiv
+preprint arXiv:2307.13304, 2023.
+[23] Chang Chen, Min Li, Zhihua Wu, Dianhai Yu, and Chao Yang. Ta-
+moe: Topology-aware large scale mixture-of-expert training. Advances
+in Neural Information Processing Systems , 35:22173–22186, 2022.
+[24] Alexis Chevalier, Alexander Wettig, Anirudh Ajith, and Danqi Chen.
+Adapting language models to compress contexts. arXiv preprint
+arXiv:2305.14788, 2023.
+[25] Zewen Chi, Li Dong, Shaohan Huang, Damai Dai, Shuming Ma, Barun
+Patra, Saksham Singhal, Payal Bajaj, Xia Song, Xian-Ling Mao, et al.
+On the representation collapse of sparse mixture of experts. Advances
+in Neural Information Processing Systems , 35:34600–34613, 2022.
+[26] Weihao Cui, Zhenhua Han, Lingji Ouyang, Yichuan Wang, Ningxin
+Zheng, Lingxiao Ma, Yuqing Yang, Fan Yang, Jilong Xue, Lili Qiu,
+et al. Optimizing dynamic neural networks with brainstorm. In 17th
+USENIX Symposium on Operating Systems Design and Implementation
+(OSDI 23), pages 797–815, 2023.
+[27] Tri Dao. Flashattention-2: Faster attention with better parallelism and
+work partitioning. arXiv preprint arXiv:2307.08691 , 2023.
+[28] Tri Dao, Dan Fu, Stefano Ermon, Atri Rudra, and Christopher R ´e.
+Flashattention: Fast and memory-efficient exact attention with io-
+awareness. Advances in Neural Information Processing Systems ,
+35:16344–16359, 2022.
+[29] Luciano Del Corro, Allie Del Giorno, Sahaj Agarwal, Bin Yu, Ahmed
+Awadallah, and Subhabrata Mukherjee. Skipdecode: Autoregressive skip
+decoding with batching and caching for efficient llm inference. arXiv
+preprint arXiv:2307.02628, 2023.
+[30] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weis-
+senborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani,
+Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. An image is
+worth 16x16 words: Transformers for image recognition at scale. arXiv
+preprint arXiv:2010.11929, 2020.
+[31] Nan Du, Yanping Huang, Andrew M Dai, Simon Tong, Dmitry Lepikhin,
+Yuanzhong Xu, Maxim Krikun, Yanqi Zhou, Adams Wei Yu, Orhan
+Firat, et al. Glam: Efficient scaling of language models with mixture-
+of-experts. In International Conference on Machine Learning , pages
+5547–5569. PMLR, 2022.
+[32] Zhixu Du, Shiyu Li, Yuhao Wu, Xiangyu Jiang, Jingwei Sun, Qilin
+Zheng, Yongkai Wu, Ang Li, Hai Li, Yiran Chen, et al. Sida: Sparsity-
+inspired data-aware serving for efficient and scalable large mixture-of-
+experts models. arXiv preprint arXiv:2310.18859 , 2023.
+IEEE TRANSACTIONS ON MOBILE COMPUTING 14
+[33] Tyna Eloundou, Sam Manning, Pamela Mishkin, and Daniel Rock. Gpts
+are gpts: An early look at the labor market impact potential of large
+language models. arXiv preprint arXiv:2303.10130 , 2023.
+[34] William Fedus, Jeff Dean, and Barret Zoph. A review of sparse expert
+models in deep learning. arXiv preprint arXiv:2209.01667 , 2022.
+[35] William Fedus, Barret Zoph, and Noam Shazeer. Switch transformers:
+Scaling to trillion parameter models with simple and efficient sparsity.
+The Journal of Machine Learning Research , 23(1):5232–5270, 2022.
+[36] Elias Frantar and Dan Alistarh. Qmoe: Practical sub-1-bit compression
+of trillion-parameter models. arXiv preprint arXiv:2310.16795 , 2023.
+[37] Elias Frantar and Dan Alistarh. Sparsegpt: Massive language models
+can be accurately pruned in one-shot. 2023.
+[38] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh.
+Gptq: Accurate post-training quantization for generative pre-trained
+transformers. arXiv preprint arXiv:2210.17323 , 2022.
+[39] Karl Friston. Hierarchical models in the brain. PLoS computational
+biology, 4(11):e1000211, 2008.
+[40] Xinyu Fu, Eugene Ch’ng, Uwe Aickelin, and Simon See. Crnn: a joint
+neural network for redundancy detection. In 2017 IEEE international
+conference on smart computing (SMARTCOMP) , pages 1–8. IEEE,
+2017.
+[41] Yao Fu, Hao Peng, Litu Ou, Ashish Sabharwal, and Tushar Khot.
+Specializing smaller language models towards multi-step reasoning.
+arXiv preprint arXiv:2301.12726 , 2023.
+[42] Tao Ge, Jing Hu, Xun Wang, Si-Qing Chen, and Furu Wei. In-context
+autoencoder for context compression in a large language model. arXiv
+preprint arXiv:2307.06945, 2023.
+[43] Liwei Guo, Wonkyo Choe, and Felix Xiaozhu Lin. Sti: Turbocharge
+nlp inference at the edge via elastic pipelining. In Proceedings of
+the 28th ACM International Conference on Architectural Support for
+Programming Languages and Operating Systems, Volume 2, pages 791–
+803, 2023.
+[44] Song Han, Huizi Mao, and William J Dally. Deep compression:
+Compressing deep neural networks with pruning, trained quantization
+and huffman coding. arXiv preprint arXiv:1510.00149 , 2015.
+[45] Loc N Huynh, Youngki Lee, and Rajesh Krishna Balan. Deepmon:
+Mobile gpu-based deep learning framework for continuous vision ap-
+plications. In Proceedings of the 15th Annual International Conference
+on Mobile Systems, Applications, and Services , pages 82–95, 2017.
+[46] RA Jacobs, MI Jordan, SJ Nowlan, and GE Hinton. ªadaptive mixtures
+of local experts, º neural computation, vol. 3. 1991.
+[47] Albert Q Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch,
+Blanche Savary, Chris Bamford, Devendra Singh Chaplot, Diego de las
+Casas, Emma Bou Hanna, Florian Bressand, et al. Mixtral of experts.
+arXiv preprint arXiv:2401.04088 , 2024.
+[48] Tian Jin and Seokin Hong. Split-cnn: Splitting window-based operations
+in convolutional neural networks for memory system optimization. In
+Proceedings of the Twenty-Fourth International Conference on Archi-
+tectural Support for Programming Languages and Operating Systems ,
+pages 835–847, 2019.
+[49] Yongsoo Joo, Junhee Ryu, Sangsoo Park, and Kang G Shin. {FAST}:
+Quick application launch on {Solid-State} drives. In 9th USENIX
+Conference on File and Storage Technologies (FAST 11) , 2011.
+[50] Sehoon Kim, Coleman Hooper, Amir Gholami, Zhen Dong, Xiuyu Li,
+Sheng Shen, Michael W Mahoney, and Kurt Keutzer. Squeezellm:
+Dense-and-sparse quantization. arXiv preprint arXiv:2306.07629, 2023.
+[51] Young Jin Kim, Raffy Fahim, and Hany Hassan. Mixture of quantized
+experts (moqe): Complementary effect of low-bit quantization and
+robustness. 2022.
+[52] Rui Kong, Yuanchun Li, Qingtian Feng, Weijun Wang, Linghe Kong, and
+Yunxin Liu. Serving moe models on resource-constrained edge devices
+via dynamic expert swapping. arXiv preprint arXiv:2308.15030 , 2023.
+[53] Nicholas D Lane, Sourav Bhattacharya, Petko Georgiev, Claudio For-
+livesi, Lei Jiao, Lorena Qendro, and Fahim Kawsar. Deepx: A software
+accelerator for low-power deep learning inference on mobile devices.
+In 2016 15th ACM/IEEE International Conference on Information
+Processing in Sensor Networks (IPSN) , pages 1–12. IEEE, 2016.
+[54] Stefanos Laskaridis, Stylianos I Venieris, Mario Almeida, Ilias Leon-
+tiadis, and Nicholas D Lane. Spinn: synergistic progressive inference
+of neural networks over device and cloud. In Proceedings of the 26th
+annual international conference on mobile computing and networking ,
+pages 1–15, 2020.
+[55] Dmitry Lepikhin, HyoukJoong Lee, Yuanzhong Xu, Dehao Chen, Orhan
+Firat, Yanping Huang, Maxim Krikun, Noam Shazeer, and Zhifeng
+Chen. Gshard: Scaling giant models with conditional computation and
+automatic sharding. arXiv preprint arXiv:2006.16668 , 2020.
+[56] Mike Lewis, Shruti Bhosale, Tim Dettmers, Naman Goyal, and Luke
+Zettlemoyer. Base layers: Simplifying training of large, sparse models.
+In International Conference on Machine Learning , pages 6265–6274.
+PMLR, 2021.
+[57] Liunian Harold Li, Jack Hessel, Youngjae Yu, Xiang Ren, Kai-Wei
+Chang, and Yejin Choi. Symbolic chain-of-thought distillation: Small
+models can also” think” step-by-step. arXiv preprint arXiv:2306.14050,
+2023.
+[58] Yixiao Li, Yifan Yu, Qingru Zhang, Chen Liang, Pengcheng He, Weizhu
+Chen, and Tuo Zhao. Losparse: Structured compression of large
+language models based on low-rank and sparse approximation. arXiv
+preprint arXiv:2306.11222, 2023.
+[59] Rendong Liang, Ting Cao, Jicheng Wen, Manni Wang, Yang Wang, Jian-
+hua Zou, and Yunxin Liu. Romou: Rapidly generate high-performance
+tensor kernels for mobile gpus. In Proceedings of the 28th Annual
+International Conference on Mobile Computing And Networking , pages
+487–500, 2022.
+[60] C Lin. Recall-oriented understudy for gisting evaluation (rouge).
+Retrieved August, 20:2005, 2005.
+[61] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Xingyu Dang, and
+Song Han. Awq: Activation-aware weight quantization for llm com-
+pression and acceleration. arXiv preprint arXiv:2306.00978 , 2023.
+[62] Sicong Liu, Yingyan Lin, Zimu Zhou, Kaiming Nan, Hui Liu, and
+Junzhao Du. On-demand deep model compression for mobile devices:
+A usage-driven model selection framework. In Proceedings of the 16th
+annual international conference on mobile systems, applications, and
+services, pages 389–400, 2018.
+[63] Zechun Liu, Barlas Oguz, Changsheng Zhao, Ernie Chang, Pierre Stock,
+Yashar Mehdad, Yangyang Shi, Raghuraman Krishnamoorthi, and Vikas
+Chandra. Llm-qat: Data-free quantization aware training for large
+language models. arXiv preprint arXiv:2305.17888 , 2023.
+[64] Zichang Liu, Jue Wang, Tri Dao, Tianyi Zhou, Binhang Yuan, Zhao
+Song, Anshumali Shrivastava, Ce Zhang, Yuandong Tian, Christopher
+Re, et al. Deja vu: Contextual sparsity for efficient llms at inference
+time. In International Conference on Machine Learning , pages 22137–
+22176. PMLR, 2023.
+[65] Xinyin Ma, Gongfan Fang, and Xinchao Wang. Llm-pruner: On
+the structural pruning of large language models. arXiv preprint
+arXiv:2305.11627, 2023.
+[66] Akhil Mathur, Nicholas D Lane, Sourav Bhattacharya, Aidan Boran,
+Claudio Forlivesi, and Fahim Kawsar. Deepeye: Resource efficient local
+execution of multiple deep vision models using wearable commodity
+hardware. In Proceedings of the 15th Annual International Conference
+on Mobile Systems, Applications, and Services , pages 68–81, 2017.
+[67] Hongyu Miao and Felix Xiaozhu Lin. Enabling large neural networks on
+tiny microcontrollers with swapping. arXiv preprint arXiv:2101.08744 ,
+2021.
+[68] Xupeng Miao, Gabriele Oliaro, Zhihao Zhang, Xinhao Cheng, Zeyu
+Wang, Rae Ying Yee Wong, Zhuoming Chen, Daiyaan Arfeen, Reyna
+Abhyankar, and Zhihao Jia. Specinfer: Accelerating generative llm
+serving with speculative inference and token tree verification. arXiv
+preprint arXiv:2305.09781, 2023.
+[69] Xuefei Ning, Zinan Lin, Zixuan Zhou, Huazhong Yang, and Yu Wang.
+Skeleton-of-thought: Large language models can do parallel decoding.
+arXiv preprint arXiv:2307.15337 , 2023.
+[70] Wei Niu, Xiaolong Ma, Sheng Lin, Shihao Wang, Xuehai Qian, Xue Lin,
+Yanzhi Wang, and Bin Ren. Patdnn: Achieving real-time dnn execution
+on mobile devices with pattern-based weight pruning. In Proceedings of
+the Twenty-Fifth International Conference on Architectural Support for
+Programming Languages and Operating Systems, pages 907–922, 2020.
+[71] OpenAI. Gpt-4 technical report. arXiv preprint arXiv:2303.08774v2 ,
+2023.
+[72] Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wain-
+wright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina
+Slama, Alex Ray, et al. Training language models to follow instructions
+with human feedback. Advances in Neural Information Processing
+Systems, 35:27730–27744, 2022.
+[73] Alec Radford, Karthik Narasimhan, Tim Salimans, Ilya Sutskever, et al.
+Improving language understanding by generative pre-training. 2018.
+[74] Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei,
+Ilya Sutskever, et al. Language models are unsupervised multitask
+learners. OpenAI blog, 1(8):9, 2019.
+[75] Stephen Roller, Sainbayar Sukhbaatar, Jason Weston, et al. Hash layers
+for large sparse models. Advances in Neural Information Processing
+Systems, 34:17555–17566, 2021.
+[76] Rishov Sarkar, Hanxue Liang, Zhiwen Fan, Zhangyang Wang, and Cong
+Hao. Edge-moe: Memory-efficient multi-task vision transformer archi-
+IEEE TRANSACTIONS ON MOBILE COMPUTING 15
+tecture with task-level sparsity via mixture-of-experts. arXiv preprint
+arXiv:2305.18691, 2023.
+[77] Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis,
+Quoc Le, Geoffrey Hinton, and Jeff Dean. Outrageously large neural
+networks: The sparsely-gated mixture-of-experts layer. arXiv preprint
+arXiv:1701.06538, 2017.
+[78] Benjamin Spector and Chris Re. Accelerating llm inference with staged
+speculative decoding. arXiv preprint arXiv:2308.04623 , 2023.
+[79] Mingjie Sun, Zhuang Liu, Anna Bair, and J Zico Kolter. A simple and
+effective pruning approach for large language models. arXiv preprint
+arXiv:2306.11695, 2023.
+[80] Shicheng Tan, Weng Lam Tam, Yuanchun Wang, Wenwen Gong, Shu
+Zhao, Peng Zhang, and Jie Tang. [industry] gkd: A general knowledge
+distillation framework for large-scale pre-trained language model. In The
+61st Annual Meeting Of The Association For Computational Linguistics,
+2023.
+[81] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-
+Anne Lachaux, Timoth´ee Lacroix, Baptiste Rozi `ere, Naman Goyal, Eric
+Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation
+language models. arXiv preprint arXiv:2302.13971 , 2023.
+[82] Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Alma-
+hairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal
+Bhargava, Shruti Bhosale, et al. Llama 2: Open foundation and fine-
+tuned chat models. arXiv preprint arXiv:2307.09288 , 2023.
+[83] Chandra Shekhara Kaushik Valmeekam, Krishna Narayanan, Dileep
+Kalathil, Jean-Francois Chamberland, and Srinivas Shakkottai. Llmzip:
+Lossless text compression using large language models. arXiv preprint
+arXiv:2306.04050, 2023.
+[84] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion
+Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. Attention
+is all you need. Advances in neural information processing systems , 30,
+2017.
+[85] Peifeng Wang, Zhengyang Wang, Zheng Li, Yifan Gao, Bing Yin, and
+Xiang Ren. Scott: Self-consistent chain-of-thought distillation. arXiv
+preprint arXiv:2305.01879, 2023.
+[86] Qipeng Wang, Mengwei Xu, Chao Jin, Xinran Dong, Jinliang Yuan,
+Xin Jin, Gang Huang, Yunxin Liu, and Xuanzhe Liu. Melon: Breaking
+the memory wall for resource-efficient on-device machine learning. In
+Proceedings of the 20th Annual International Conference on Mobile
+Systems, Applications and Services , pages 450–463, 2022.
+[87] Minghao Wu, Abdul Waheed, Chiyu Zhang, Muhammad Abdul-Mageed,
+and Alham Fikri Aji. Lamini-lm: A diverse herd of distilled models from
+large-scale instructions. arXiv preprint arXiv:2304.14402 , 2023.
+[88] Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth,
+and Song Han. Smoothquant: Accurate and efficient post-training
+quantization for large language models. In International Conference
+on Machine Learning , pages 38087–38099. PMLR, 2023.
+[89] Mengwei Xu, Feng Qian, Mengze Zhu, Feifan Huang, Saumay Pushp,
+and Xuanzhe Liu. Deepwear: Adaptive local offloading for on-wearable
+deep learning. IEEE Transactions on Mobile Computing, 19(2):314–330,
+2019.
+[90] Mengwei Xu, Mengze Zhu, Yunxin Liu, Felix Xiaozhu Lin, and Xu-
+anzhe Liu. Deepcache: Principled cache for mobile deep vision. In
+Proceedings of the 24th annual international conference on mobile
+computing and networking , pages 129–144, 2018.
+[91] Mingxue Xu, Yao Lei Xu, and Danilo P Mandic. Tensorgpt: Efficient
+compression of the embedding layer in llms based on the tensor-train
+decomposition. arXiv preprint arXiv:2307.00526 , 2023.
+[92] Rongjie Yi, Xiang Li, Zhenyan Lu, Hao Zhang, Daliang Xu, Liming
+Yang, Weikai Xie, Chenghua Wang, Xuanzhe Liu, and Mengwei Xu.
+mllm: fast and lightweight multimodal llm inference engine for mobile
+and edge devices, 2023.
+[93] Siyu Yuan, Jiangjie Chen, Ziquan Fu, Xuyang Ge, Soham Shah,
+Charles Robert Jankowski, Deqing Yang, and Yanghua Xiao. Distilling
+script knowledge from large language models for constrained language
+planning. arXiv preprint arXiv:2305.05252 , 2023.
+[94] Zhihang Yuan, Lin Niu, Jiawei Liu, Wenyu Liu, Xinggang Wang,
+Yuzhang Shang, Guangyu Sun, Qiang Wu, Jiaxiang Wu, and Bingzhe
+Wu. Rptq: Reorder-based post-training quantization for large language
+models. arXiv preprint arXiv:2304.01089 , 2023.
+[95] Ali Hadi Zadeh, Isak Edo, Omar Mohamed Awad, and Andreas
+Moshovos. Gobo: Quantizing attention-based nlp models for low
+latency and energy efficient inference. In 2020 53rd Annual IEEE/ACM
+International Symposium on Microarchitecture (MICRO) , pages 811–
+824. IEEE, 2020.
+[96] Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping Huang, Vincent
+Zhao, Andrew M Dai, Quoc V Le, James Laudon, et al. Mixture-of-
+experts with expert choice routing. Advances in Neural Information
+Processing Systems, 35:7103–7114, 2022.
+APPENDIX A
+ED G EMOE EXAMPLES
+This appendix shows the output of the Switch Transformers
+base-8 model in the original version and after EdgeMoE
+processing. Here are two examples provided:
+Prompt: summarize: The 18-year-old identical twins
+have come through the club’s academy to impress in
+nine Premiership appearances between them this season.
+Both play in the back row and have also featured
+for the England Under-20 side. ”They will play key
+parts in the club’s vision of developing players in the
+academy, and bringing them through to the first team,”
+Sale director of rugby Steve Diamond said. The pair
+became only the fourth set of twins to play side-by-side
+in the Premiership when they appeared in Sale’s 34-
+24 defeat by Wasps on 27 November. Tom is also the
+Sharks’ youngest Premiership try scorer after crossing
+on his debut in the 31-13 win over Bristol on 30 October.
+original:
+Sale’s academy has produced nine Premiership players
+this season. Tom is the Sharks’ youngest player.
+EdgeMoE:
+The twins have played in the back row and have also
+played for the England Under-20 team. They are the
+fourth set of twins to play in the Premiership this
+season.
+Prompt: summarize: Wellington monument on the
+Blackdown Hills, in Somerset, was built in 1817 but
+since 2005 it has been fenced off because of falling
+stone debris. The National Trust is using ground-
+penetrating radar on the 174ft (53m) tower to see under
+its stone cladding. Ken Evans, from the trust, said
+the work was ”crucial”. Built on one of the highest
+points of the Blackdown Hills, the landmark was put
+up as a tribute to the Duke of Wellington’s military
+achievements at the Battle of Waterloo. But according
+to the trust, it has been struck by lightning twice in its
+history and renovating the very tall landmark every 10
+to 15 years has been ”expensive and unsustainable”. Mr
+Evans, the trust’s building surveyor, said the radar study
+was one of several being carried out to ”understand this
+unique and somewhat complex monument”. ”We have
+been using wind and movement sensors which have
+already surprised us by showing that it doesn’t flex
+in the wind quite as much as we expected,” he said.
+”The ground-penetrating radar seeks to identify voids
+and gaps in the stonework under the surface but should
+also tell us more about the materials which were used
+to build the obelisk.” Data from the detailed survey will
+also be used to build a computer model of the obelisk
+and help with a ”more effective repair approach”.
+IEEE TRANSACTIONS ON MOBILE COMPUTING 16
+original:
+The National Trust is studying Wellington monument
+on the Blackdown Hills, Somerset. The monument has
+been struck by lightning twice in its history. The radar
+study is one of several studies carried out to understand
+the monument.
+EdgeMoE:
+The National Trust is working on a project to repair
+Wellington monument on the Blackdown Hills, Somer-
+set. The monument has been struck by lightning twice
+in its history. The project is important for the trust’s
+building surveyor. The project will help the National
+Trust with the repair approach.
+Rongjie Yi is a Ph.D. student at the School of
+Computer Science, Beijing University of Posts and
+Telecommunications, China.
+Liwei Guo is a tenure-track Assistant Professor at
+the University of Electronic Science and Technol-
+ogy of China (UESTC) in the school of Computer
+Science. He received his Ph.D. degree from the
+University of Virginia in 2022 under Prof. Felix
+Xiaozhu Lin. He is interested in improving the
+efficiency and security of edge devices from the
+perspective of systems software. For more details,
+please visit https://zaxguo .github.io.
+Shiyun Wei is an engineer in the Zhongguangcun
+Laboratory. Her research interests include program
+analysis and software engineering.
+Ao Zhou received the Ph.D. degrees from the
+Beijing University of Posts and Telecommunica-
+tions, Beijing, China, in 2015. She is currently an
+associate professor with the State Key Laboratory
+of Networking and Switching Technology, Beijing
+University of Posts and Telecommunications. She
+has published more than 20 research papers. She
+played a key role at many international conferences.
+Her research interests include cloud computing and
+edge computing.
+Shangguang Wang is a Professor at the School of
+Computer Science, Beijing University of Posts and
+Telecommunications, China. He received his Ph.D.
+degree at Beijing University of Posts and Telecom-
+munications in 2011. He has published more than
+150 papers. His research interests include service
+computing, mobile edge computing, and satellite
+computing. He is currently serving as Chair of
+IEEE Technical Committee on Services Computing,
+and Vice-Chair of IEEE Technical Committee on
+Cloud Computing (2020-). He also served as General
+Chairs or Program Chairs of 10+ IEEE conferences. He is a Fellow of the
+IET, and Senior Member of the IEEE. For further information on Dr. Wang,
+please visit: http://www .sguangwang.com.
+Mengwei Xu is an associate professor in the com-
+puter science department at Beijing University of
+Posts and Telecommunications. His research inter-
+ests cover the broad areas of mobile computing,
+edge computing, artificial intelligence, and system
+software.

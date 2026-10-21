@@ -1,0 +1,105 @@
+[09:54] DeepSeek-V2.5-1210-4bit: 38 slots per layer (budget 30 GB)
+[09:54] START cwq_M0_cap8
+offload: 38 slots/layer, resident 39.3 GB
+loaded mlx-community/DeepSeek-V2.5-1210-4bit in 8s; 59 MoE layers (1..59), k=6
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 25/500 hit 0.520  last: prompt 157 prefill 14681ms, 1 tok in 15.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 50/500 hit 0.480  last: prompt 217 prefill 15079ms, 1 tok in 16.0s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 75/500 hit 0.480  last: prompt 367 prefill 15492ms, 2 tok in 16.8s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 100/500 hit 0.490  last: prompt 340 prefill 16285ms, 32 tok in 33.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 125/500 hit 0.456  last: prompt 355 prefill 15873ms, 2 tok in 17.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 150/500 hit 0.447  last: prompt 321 prefill 16737ms, 2 tok in 17.9s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 175/500 hit 0.440  last: prompt 324 prefill 16479ms, 2 tok in 17.6s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 200/500 hit 0.425  last: prompt 340 prefill 16287ms, 2 tok in 17.5s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 225/500 hit 0.444  last: prompt 243 prefill 16201ms, 3 tok in 18.2s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 250/500 hit 0.444  last: prompt 322 prefill 16225ms, 1 tok in 17.0s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 275/500 hit 0.447  last: prompt 442 prefill 15602ms, 1 tok in 16.9s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 300/500 hit 0.457  last: prompt 259 prefill 15020ms, 6 tok in 18.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 325/500 hit 0.446  last: prompt 243 prefill 15688ms, 4 tok in 20.0s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 350/500 hit 0.449  last: prompt 264 prefill 15986ms, 4 tok in 18.2s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 375/500 hit 0.440  last: prompt 283 prefill 17047ms, 3 tok in 18.5s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 400/500 hit 0.440  last: prompt 347 prefill 16822ms, 1 tok in 18.8s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 425/500 hit 0.431  last: prompt 314 prefill 15467ms, 3 tok in 17.7s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 450/500 hit 0.436  last: prompt 198 prefill 15477ms, 2 tok in 17.0s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 475/500 hit 0.436  last: prompt 313 prefill 17418ms, 5 tok in 20.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] 500/500 hit 0.436  last: prompt 295 prefill 15119ms, 2 tok in 16.4s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cap8] Hit 0.436 F1 0.382 n=500
+[12:30] END cwq_M0_cap8 rc=0
+[12:30] START webqsp_M0_cap8
+offload: 38 slots/layer, resident 39.3 GB
+loaded mlx-community/DeepSeek-V2.5-1210-4bit in 8s; 59 MoE layers (1..59), k=6
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 25/500 hit 0.880  last: prompt 389 prefill 15469ms, 30 tok in 31.4s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 50/500 hit 0.900  last: prompt 197 prefill 18153ms, 2 tok in 19.5s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 75/500 hit 0.840  last: prompt 190 prefill 16106ms, 23 tok in 26.5s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 100/500 hit 0.840  last: prompt 288 prefill 15149ms, 3 tok in 17.0s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 125/500 hit 0.816  last: prompt 100 prefill 14955ms, 4 tok in 17.1s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 150/500 hit 0.807  last: prompt 229 prefill 15134ms, 2 tok in 16.4s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 175/500 hit 0.811  last: prompt 260 prefill 15911ms, 32 tok in 135.5s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 200/500 hit 0.790  last: prompt 268 prefill 16106ms, 25 tok in 28.2s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 225/500 hit 0.791  last: prompt 216 prefill 16875ms, 3 tok in 19.0s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 250/500 hit 0.776  last: prompt 165 prefill 16114ms, 16 tok in 22.8s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 275/500 hit 0.775  last: prompt 296 prefill 17498ms, 4 tok in 19.5s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 300/500 hit 0.783  last: prompt 153 prefill 16320ms, 2 tok in 17.7s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 325/500 hit 0.788  last: prompt 304 prefill 15826ms, 3 tok in 19.0s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 350/500 hit 0.789  last: prompt 315 prefill 16511ms, 32 tok in 33.9s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 375/500 hit 0.787  last: prompt 117 prefill 15903ms, 2 tok in 16.7s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 400/500 hit 0.787  last: prompt 185 prefill 15440ms, 3 tok in 17.4s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 425/500 hit 0.793  last: prompt 429 prefill 16697ms, 2 tok in 17.8s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 450/500 hit 0.784  last: prompt 170 prefill 16733ms, 7 tok in 21.1s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 475/500 hit 0.779  last: prompt 116 prefill 13983ms, 3 tok in 15.6s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] 500/500 hit 0.770  last: prompt 315 prefill 15718ms, 4 tok in 17.5s
+[DeepSeek-V2.5-1210-4bit_webqsp_M0_cap8] Hit 0.770 F1 0.610 n=500
+[15:26] END webqsp_M0_cap8 rc=0
+[15:26] START train_M0_cap8
+offload: 38 slots/layer, resident 39.3 GB
+loaded mlx-community/DeepSeek-V2.5-1210-4bit in 8s; 59 MoE layers (1..59), k=6
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 25/1000 hit 0.960  last: prompt 348 prefill 15601ms, 16 tok in 24.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 50/1000 hit 0.900  last: prompt 204 prefill 18718ms, 1 tok in 23.6s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 75/1000 hit 0.800  last: prompt 123 prefill 16714ms, 4 tok in 19.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 100/1000 hit 0.810  last: prompt 129 prefill 14039ms, 3 tok in 15.6s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 125/1000 hit 0.824  last: prompt 128 prefill 16454ms, 2 tok in 18.0s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 150/1000 hit 0.807  last: prompt 246 prefill 15908ms, 27 tok in 29.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 175/1000 hit 0.766  last: prompt 455 prefill 16832ms, 5 tok in 23.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 200/1000 hit 0.775  last: prompt 338 prefill 17681ms, 3 tok in 21.4s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 225/1000 hit 0.778  last: prompt 213 prefill 18878ms, 1 tok in 21.5s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 250/1000 hit 0.772  last: prompt 220 prefill 15423ms, 3 tok in 17.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 275/1000 hit 0.782  last: prompt 134 prefill 15409ms, 2 tok in 16.6s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 300/1000 hit 0.777  last: prompt 344 prefill 15980ms, 6 tok in 19.6s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 325/1000 hit 0.772  last: prompt 151 prefill 15535ms, 9 tok in 21.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 350/1000 hit 0.766  last: prompt 217 prefill 15654ms, 6 tok in 18.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 375/1000 hit 0.757  last: prompt 207 prefill 14882ms, 1 tok in 15.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 400/1000 hit 0.757  last: prompt 303 prefill 15568ms, 2 tok in 16.4s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 425/1000 hit 0.758  last: prompt 276 prefill 16503ms, 1 tok in 17.4s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 450/1000 hit 0.751  last: prompt 303 prefill 15985ms, 2 tok in 17.4s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 475/1000 hit 0.762  last: prompt 337 prefill 15638ms, 2 tok in 18.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 500/1000 hit 0.764  last: prompt 423 prefill 18691ms, 5 tok in 21.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 525/1000 hit 0.764  last: prompt 310 prefill 16379ms, 5 tok in 18.9s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 550/1000 hit 0.764  last: prompt 365 prefill 16231ms, 3 tok in 17.9s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 575/1000 hit 0.769  last: prompt 113 prefill 14502ms, 2 tok in 15.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 600/1000 hit 0.768  last: prompt 494 prefill 15481ms, 3 tok in 17.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 625/1000 hit 0.770  last: prompt 220 prefill 15653ms, 1 tok in 18.8s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 650/1000 hit 0.768  last: prompt 344 prefill 15626ms, 3 tok in 19.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 675/1000 hit 0.767  last: prompt 310 prefill 15947ms, 2 tok in 17.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 700/1000 hit 0.766  last: prompt 200 prefill 17775ms, 2 tok in 20.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 725/1000 hit 0.764  last: prompt 127 prefill 14876ms, 1 tok in 15.6s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 750/1000 hit 0.765  last: prompt 226 prefill 19589ms, 3 tok in 22.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 775/1000 hit 0.764  last: prompt 124 prefill 14550ms, 2 tok in 16.0s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 800/1000 hit 0.762  last: prompt 227 prefill 15828ms, 4 tok in 18.5s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 825/1000 hit 0.762  last: prompt 100 prefill 14394ms, 3 tok in 16.1s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 850/1000 hit 0.761  last: prompt 154 prefill 15098ms, 3 tok in 16.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 875/1000 hit 0.763  last: prompt 113 prefill 14587ms, 3 tok in 16.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 900/1000 hit 0.757  last: prompt 224 prefill 15995ms, 2 tok in 17.3s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 925/1000 hit 0.755  last: prompt 365 prefill 15446ms, 1 tok in 16.2s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 950/1000 hit 0.757  last: prompt 339 prefill 17523ms, 2 tok in 18.9s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 975/1000 hit 0.755  last: prompt 254 prefill 15654ms, 32 tok in 33.7s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] 1000/1000 hit 0.753  last: prompt 207 prefill 16760ms, 2 tok in 17.9s
+[DeepSeek-V2.5-1210-4bit_train_M0_cap8] Hit 0.753 F1 0.616 n=1000
+[21:04] END train_M0_cap8 rc=0
+[21:04] START cwq_M0_cot_chat_cap8
+offload: 38 slots/layer, resident 39.3 GB
+loaded mlx-community/DeepSeek-V2.5-1210-4bit in 8s; 59 MoE layers (1..59), k=6
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cot_chat_cap8] 25/32 hit 0.440  last: prompt 118 prefill 16394ms, 166 tok in 119.7s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cot_chat_cap8] 32/32 hit 0.406  last: prompt 96 prefill 14342ms, 54 tok in 45.3s
+[DeepSeek-V2.5-1210-4bit_cwq_M0_cot_chat_cap8] Hit 0.406 F1 0.358 n=32
+[22:03] END cwq_M0_cot_chat_cap8 rc=0
+removed /Users/bowenzheng/mlx_offload/DeepSeek-V2.5-1210-4bit/experts.bin
+B TIER DONE

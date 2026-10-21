@@ -1,0 +1,1405 @@
+HOBBIT: A Mixed Precision Expert Offloading
+System for Fast MoE Inference
+Peng Tang1,*, Jiacheng Liu2,*, Xiaofeng Hou1,†, Yifei Pu1, Jing Wang1, Pheng-Ann Heng2, Chao Li1,†,
+Minyi Guo1
+1Department of Computer Science and Engineering, Shanghai Jiao Tong University, Shanghai, China
+2Department of Computer Science and Engineering, The Chinese University of Hong Kong, China
+* Equal contribution, † Corresponding authors
+Abstract
+The Mixture-of-Experts (MoE) architecture has demonstrated
+significant advantages in the era of Large Language Models
+(LLMs), offering enhanced capabilities with reduced infer-
+ence costs. However, deploying MoE-based LLMs on memory-
+constrained edge devices remains challenging due to their
+substantial memory requirements. While existing expert-
+offloading methods alleviate the memory requirements, they
+often incur significant expert-loading costs or compromise
+model accuracy. We present HOBBIT, a mixed precision ex-
+pert offloading system to enable flexible and efficient MoE
+inference. Our key insight is that dynamically replacing less
+critical cache-miss experts with low-precision versions can
+substantially reduce expert-loading latency while preserv-
+ing model accuracy. HOBBIT introduces three innovative
+techniques that map the natural hierarchy of MoE computa-
+tion: (1) a token-level dynamic expert loading mechanism,
+(2) a layer-level adaptive expert prefetching technique, and
+(3) a sequence-level multidimensional expert caching pol-
+icy. These innovations fully leverage the benefits of mixed-
+precision expert inference. By implementing HOBBIT on
+top of the renowned LLM inference framework Llama.cpp,
+we evaluate its performance across different edge devices
+with representative MoE models. The results demonstrate
+that HOBBIT achieves up to a 9.93x speedup in decoding
+compared to state-of-the-art MoE offloading systems.
+1
+Introduction
+The rapid explosion of Large Language Models (LLMs) has
+led to their widespread application across various fields [57].
+Beyond deploying LLM in cloud-based data centers, there
+is a growing demand to deploy these models at the edge to
+address issues like high latency, privacy concerns, and depen-
+dence on stable network connections inherent in centralized
+approaches [15]. Consequently, there is an increasing need
+to run LLMs on edge devices, bringing intelligence closer
+to the end-user. Nowadays, both academia [6, 53, 56] and
+industry [4, 21, 40] are actively accelerating the deployment
+of LLMs at the edge.
+In recent years, the Mixture of Experts (MoE) architec-
+ture [42] has emerged as a promising approach to enhance
+LLM capabilities by enabling significant model size expan-
+sion while maintaining computational efficiency [1, 8, 13, 24,
+46]. However, MoE-based LLMs demand substantial GPU
+memory for parameter storage. For instance, the Mixtral-
+8x7B model [24], despite activating only 14 billion parame-
+ters per token, requires 87GB of memory to store its complete
+set of 45 billion parameters. This poses significant deploy-
+ment challenges on memory-constrained edge devices, such
+as the NVIDIA Jetson AGX Orin with its 32GB memory
+capacity. To address this limitation, expert-offloading tech-
+niques have been developed to enable the execution of these
+large-scale models on memory-limited devices by exploiting
+the sparse activation patterns inherent in MoE architectures.
+In essence, expert-offloading techniques primarily store
+all non-expert weights and a subset of important experts
+in GPU memory (referred to as the "expert cache"), while
+offloading other experts to CPU memory or SSD (referred
+to as "next-level memory"). When the required experts are
+not available in the expert cache, they are loaded from next-
+level memory into the cache, evicting some existing experts.
+However, due to limited memory bandwidth, loading an ex-
+pert from next-level memory introduces significant latency,
+which can severely slow down inference. While existing sys-
+tems optimize expert-offloading with various methods, they
+still face several limitations, as outlined below.
+Inflexible and aggressive optimizations of expert
+loading. When an expert cache miss occurs, directly load-
+ing a missing expert incurs significant latency. To mitigate
+this, EdgeMoE [54] employs different quantization levels
+for various experts to reduce I/O costs and AdapMoE [58]
+skips certain experts to decrease loading costs. However,
+these approaches have notable limitations. EdgeMoE’s static
+approach determines optimal bit widths based on specific
+dataset profiling, leading to inflexibility across diverse en-
+vironments and potential accuracy impacts. This method
+becomes particularly complex when dealing with different
+models, especially as the number of experts increases. Con-
+versely, AdapMoE’s aggressive expert-skipping strategy can
+1
+arXiv:2411.01433v2  [cs.LG]  6 Nov 2024
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+cause substantial accuracy degradation, particularly with
+small top-𝑘values (e.g., 𝑘= 2 in Mixtral-8x7B).
+Limited benefits of expert prefetching. To reduce the
+waiting time for required experts, prefetching is a valuable
+technique that overlaps expert loading with GPU computa-
+tion. However, since MoE models only need the top-𝑘experts
+for the next layer, accurately predicting these top-𝑘experts
+is crucial. MoE-Infinity [52] addresses this by prioritizing
+expert activation ratios for prefetching. MoE-Offloading [11]
+uses the gate inputs from the current layer as inputs for
+the next layer to predict the required experts. Pre-gated
+MoE [22] modifies the model structure by introducing a pre-
+gate function to determine the next layer’s required experts
+in the current layer. Although prefetching can overlap expert-
+loading with GPU computation, these prediction methods
+offer limited benefits because the expert-loading cost is typ-
+ically much greater than the GPU computation cost in the
+inference process of MoE-based LLMs.
+Inefficient management of expert cache. Given the
+sparse activation and temporal locality characteristics of ex-
+perts, designing an appropriate cache replacement policy
+to manage the expert cache can significantly improve the
+expert cache hit ratio, reducing the need to load experts from
+next-level memory and thereby speeding up inference. For in-
+stance, EdgeMoE [54] and MoE-Infinity [52] utilize the least
+frequently used (LFU) policy, while MoE-Offloading [11]
+adopts the least recently used (LRU) policy. Although these
+approaches outperform random replacement policies, they
+are not fully optimal, as they fail to account for the unique
+characteristics of different models, which requires more tai-
+lored strategies to manage the expert cache efficiently.
+To address the above challenges, we propose HOBBIT, a
+system designed to accelerate expert loading across three
+levels of MoE computation. It significantly accelerates MoE-
+based LLM inference on memory-limited devices compared
+to existing systems by utilizing mixed precision expert infer-
+ence. Our key contributions are as follows:
+• We propose a token-level dynamic expert loading mech-
+anism that reduces latency through low-precision re-
+placement of less critical cache-miss experts, maintain-
+ing accuracy and flexibility.
+• We develop a layer-level adaptive expert prefetching
+technique with high prediction accuracy and minimal
+penalties, leveraging mixed-precision prefetching to
+optimize computation-communication overlap.
+• We introduce a sequence-level multidimensional ex-
+pert caching policy that combines model-specific strate-
+gies with mixed-precision features to efficiently man-
+age the expert cache and minimize miss penalties across
+different models.
+• We implement HOBBIT on top of Llama.cpp with 8,000
+additional lines of C++/C code, and evaluate it on two
+popular MoE-based LLMs across two memory-limited
+(a) Dense FFN Layer
+(b) Sparse MoE Layer
+Figure 1. Comparison between different LLM architectures.
+platforms, demonstrating up to 9.93x speedup in de-
+coding over state-of-the-art systems.
+2
+Background and Motivation
+2.1
+Background
+Spare MoE Layers. Due to the effectiveness of the MoE
+architecture [23], numerous MoE-based models [10, 19, 47]
+have emerged. In this work, we focus on the most widely used
+sparse MoE layer [42], which employs FFNs as experts. As
+shown in Figure 1, unlike dense layers, the MoE layer uses a
+gating function to select the 𝐾most relevant experts (2 in the
+figure) for each input token, aggregating their outputs. This
+approach mimics specialized processing in different brain
+regions, enhancing model performance without increasing
+computational complexity. For an input 𝑥, the output 𝑦of
+the MoE module can be formulated as:
+𝑦=
+𝐾
+∑︁
+𝑖=1
+𝐺(𝑥)𝑒𝑖𝐸𝑒𝑖(𝑥)
+(1)
+where𝑒𝑖is the𝑖-th selected expert in the current layer,𝐺(𝑥)𝑒𝑖
+represents the gating weight of expert 𝑒𝑖, and 𝐸𝑒𝑖(𝑥) is the
+output of expert 𝑒𝑖. The gating function 𝐺(𝑥) is typically
+implemented using a linear layer followed by a Top-k oper-
+ation [8, 13, 24, 46]. By stacking MoE layers with multiple
+experts, LLMs can scale to massive sizes, improving perfor-
+mance while maintaining computational efficiency.
+Expert Offloading. Parameter-offloading techniques typi-
+cally transfer part of the model’s parameters to CPU mem-
+ory or SSDs when GPU memory is insufficient [3]. However,
+most offloading systems, such as Zero-Infinity [39] and Ac-
+celerate [18], are designed for dense LLMs and load model
+parameters layer-by-layer on demand. This approach over-
+looks the sparse activation nature of MoE models, resulting
+in substantial latency. For instance, loading a layer of the
+Mixtral-8x7B model from CPU memory via a PCIe 4.0 link
+(32GB/s) takes approximately 80ms, while computing the
+same layer on an RTX 4090 GPU requires only about 3ms.
+To address the latency issue of MoE models when using
+parameter offloading, some studies have developed expert-
+offloading, a specialized form of parameter-offloading tai-
+lored to the sparse activation characteristic of MoE [11, 25,
+2
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+(a) Hardware Architecture
+(b) MoE Parameters
+Figure 2. Expert-offloading on hardware architecture and
+model parameter distribution for Mixtral-8x7B.
+52]. As shown in Figure 2-(a), this technique typically consid-
+ers two levels of hardware memory: GPU memory stores all
+non-expert weights, a subset of "hot experts" (expert cache),
+and internal activations, while other experts are offloaded to
+CPU memory or SSD and loaded on demand. This approach is
+effective because each token requires all non-expert weights
+but only a fraction of experts. Figure 2-(b) illustrates this
+efficiency using the Mixtral-8x7B model as an example: non-
+expert weights constitute only 4% of the model, and just 31%
+of the parameters are activated per token. By leveraging this
+sparse activation pattern, expert-offloading significantly re-
+duces GPU memory requirements while maintaining model
+functionality, making it possible to deploy large MoE models
+on memory-constrained devices.
+Despite the effectiveness, existing expert-offloading tech-
+niques still incur high latency due to on-demand loading.
+While some of the works focus on optimizing prefetching
+techniques and cache replacement policies to accelerate in-
+ference speed, they remain constrained by the significant
+cost of expert loading during cache misses.
+2.2
+Motivations
+We identify two key observations that motivate our work:
+Expert loading dominates inference cost. To quantify
+the bottlenecks in MoE model inference, we measured the
+time costs of different operations when running a Mixtral-
+8x7B layer on two memory-limited edge devices: an RTX
+4090 (representing an edge server) and a Jetson Orin (rep-
+resenting an end device). As shown in Figure 3-(a), expert
+loading dominates the total inference time, consuming ap-
+proximately 85.5% on the RTX 4090 and 94.5% on the Jetson
+Orin, while computation accounts for only a small fraction.
+While prefetching is commonly used to accelerate offloading
+by overlapping computation with data loading, its benefits
+are severely limited in MoE models due to this disproportion-
+ate time distribution. Some researchers have attempted to
+address this by employing dynamic gating to limit the num-
+ber of experts loaded [30, 58]. However, this approach comes
+with significant accuracy trade-offs. As shown in Figure 3-
+(b), the "Expert Skip" method results in notable degradation
+(a) Expert loading accounts for
+the majority of latency
+(b) Low-precision expert
+replacement preserves accuracy
+Figure 3. Analysis of expert loading acceleration chances.
+of model performance, with a 10% expert skip rate causing
+more than a 1% increase in perplexity (PPL).
+Mixed precision expert preserves model accuracy. Quan-
+tization is an effective method for reducing model parameter
+size, but directly quantizing the entire model can result in
+substantial accuracy loss. In MoE models, different experts
+have varying levels of importance [27, 54, 58], so quantizing
+only the less important experts minimally impacts accuracy.
+As shown in Figure 3-(b), compared to skipping some experts,
+replacing them with low-precision versions better maintains
+model accuracy, and the gap between skipping and replac-
+ing grows as the ratio increases. In particular, when fewer
+than 20% of the experts are quantized, model performance
+declines by no more than 1%. Thus, applying quantization
+to low-importance experts in expert-offloading techniques
+can significantly reduce expert-loading cost. Specifically, if
+a required expert is not available in GPU memory and its
+importance is low, we can fetch a lower-precision version
+to replace it, thereby greatly reducing loading time. For in-
+stance, replacing a float16 expert with an int4 version can
+achieve up to a 4x speedup in the loading process.
+These observations motivate the need for a system that
+can dynamically manage expert precision during inference
+while maintaining model accuracy.
+3
+HOBBIT System
+3.1
+Overview of HOBBIT
+HOBBIT is a mixed precision expert offloading system de-
+signed for the inference of MoE-based LLMs on memory-
+limited devices. It incorporates three-level innovations: (i) a
+token-level dynamic expert loading mechanism that selects
+an appropriate precision expert from CPU memory or SSD
+through gating networks; (ii) a layer-level adaptive expert
+prefetching technique that provides highly accurate prefetch-
+ing decisions for subsequent layers; and (iii) a sequence-level
+multidimensional expert caching policy that combines mul-
+tiple cache replacement strategies along with the unique
+features of the mixed precision experts. The three-level de-
+sign of HOBBIT directly maps to the natural hierarchy of
+MoE computation, ensuring comprehensive optimization
+while avoiding redundant granularities.
+3
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+Figure 4. System overview of HOBBIT.
+As shown in Figure 4, HOBBIT consists of three main mod-
+ules built upon these mechanisms: Dynamic Expert Loader,
+Adaptive Expert Predictor, and Multidimensional Cache Man-
+ager. The Dynamic Expert Loader implements the dynamic
+loading mechanism to generate loading tasks for cache-miss
+experts and load corresponding precision experts. The Adap-
+tive Expert Predictor leverages the adaptive prefetching tech-
+nique to predict experts required for subsequent layers. The
+Multidimensional Cache Manager employs the proposed
+multidimensional caching policy to manage experts stored
+in GPU memory.
+When executing a MoE layer on the GPU, the system
+first ❶selects the top-k required experts (referred to as on-
+demand experts) for MoE computation based on the gating
+outputs. Simultaneously, the Adaptive Expert Predictor ❷
+predicts the experts needed for subsequent layers (referred
+to as prediction experts) using its Stacking Computer, based
+on the current gating input. The Multidimensional Cache
+Manager then ❸checks if the required experts are present
+in the expert cache and updates (for the current processing
+sequence) or resets (for a new coming sequence) the priority
+record with its Policy Performer. If all on-demand experts are
+present in the cache, ❽the expert computation is performed
+on the GPU cores.
+If any on-demand or prediction experts are missing from
+the cache, the Dynamic Expert Loader uses the Expert Scorer
+to ❹handle the cache miss based on the gating outputs of
+the current processing token. The Expert Scorer dynamically
+❺generates the corresponding loading tasks with varying
+precision requirements, adding them to the Task Queue. The
+Expert Scheduler module in the Dynamic Expert Loader ❻
+then fetches tasks from the Task Queue and ❼loads the cor-
+responding experts from the Expert Storage into the Expert
+Cache. If necessary, the Multidimensional Cache Manager
+will replace older experts in the cache based on the proposed
+caching policy. The system waits for all on-demand expert
+loading tasks to complete before ❽computing the outputs
+of the experts for the MoE module and advancing to the next
+layer. This process efficiently handles expert cache misses
+(a) Relationship between expert
+output and gating output
+(b) Distribution of experts’
+unimportance degree score
+Figure 5. Gating output statistics of Mixtral-8x7B.
+and accelerates inference by reducing expert-loading costs
+through the use of adaptive precision experts.
+3.2
+Token-level Dynamic Expert Loading
+Loading low-precision experts during cache misses effec-
+tively mitigates expert loading latency, as demonstrated in
+Section 2.2. However, to preserve model accuracy, this re-
+placement should target only less important experts. While
+model profiling on specific datasets can identify expert im-
+portance, this static approach is impractical for diverse de-
+ployment environments. Instead, we need a dynamic method
+to assess expert importance based on runtime inputs during
+the LLM’s generation process.
+Expert importance estimation. Based on the comput-
+ing pattern of the MoE module in Equation (1), expert 𝑒𝑖
+contributes 𝐺(𝑥)𝑒𝑖𝐸𝑒𝑖(𝑥) to the output 𝑦. We can represent
+the influence of expert 𝑒𝑖on the output using the magni-
+tude ||𝐺(𝑥)𝑒𝑖𝐸𝑒𝑖(𝑥)|| (where || · || denotes magnitude), as a
+smaller magnitude implies that the values in the tensor are
+closer to zero. Since 𝐸𝑒𝑖(𝑥) cannot be computed without the
+weight of expert 𝑒𝑖, we approximate ||𝐺(𝑥)𝑒𝑖𝐸𝑒𝑖(𝑥)|| using
+||𝐺(𝑥)𝑒𝑖||. This approximation is based on our observation
+that ||𝐺(𝑥)𝑒𝑖|| and ||𝐺(𝑥)𝑒𝑖𝐸𝑒𝑖(𝑥)|| are positively correlated.
+To confirm this positive relationship, we collected both the
+expert output ||𝐺(𝑥)𝐸(𝑥)|| and the gating output ||𝐺(𝑥)||
+from the Mixtral-8x7B model. After normalizing the data, we
+4
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+Figure 6. Token-level dynamic Expert Loader.
+compute the Pearson correlation coefficient matrix and plot a
+heatmap to visualize their relationship. As shown in Figure 5-
+(a), the two variables exhibit a strong positive correlation,
+with a coefficient of 0.99.
+Takeaways: We can leverage ||𝐺(𝑥)|| as a computationally
+efficient proxy for expert importance, given its strong positive
+correlation with ||𝐺(𝑥)𝐸(𝑥)||.
+Expert loader design. Based on the observations above,
+we first rank the selected 𝐾experts in descending order of
+||𝐺(𝑥)𝑒𝑖|| (where a larger𝑖corresponds to a smaller ||𝐺(𝑥)𝑒𝑖||,
+and ||𝐺(𝑥)|| values are normalized). Next, we calculate the
+unimportance degree score 𝑠𝑒𝑖for each expert 𝑒𝑖as follows:
+𝑠𝑒𝑖(𝑥) =
+(Í𝑖−1
+𝑗=0 ||𝐺(𝑥)𝑒𝑗||,
+𝑖> 0
+0,
+𝑖= 0
+(2)
+Where 𝑥is the gating input of current processing to-
+ken. Thus, each expert 𝑒𝑖has a score to represent its im-
+portance (a higher score indicates lower importance). This
+score will determine whether the expert is replaced with
+a low-precision version. Specifically, we set a threshold 𝑇1
+(where 0 ≤𝑇1 ≤1): if 𝑠𝑒𝑖≤𝑇1, we consider the expert impor-
+tant and load the high-precision version; otherwise, we opt
+for the low-precision version to reduce loading overhead due
+to its minimal influence on the output. Notably, we always
+treat the first expert (𝑒0) as important, keeping it in high
+precision to maintain model accuracy.
+Based on the unimportance degree score, we implement
+the Dynamic Expert Loader as illustrated in Figure 6. To in-
+crease flexibility, we introduce a second threshold 𝑇2, allow-
+ing the system to bypass less important experts. As shown in
+Figure 6, when a cache miss occurs, the Expert Scorer mod-
+ule computes the scores of the missed experts and generates
+appropriate tasks based on these scores, adding them to the
+Task Queue. The Expert Scheduler then fetches tasks from
+the queue and loads the corresponding precision experts
+from expert storage via system calls, such as read(...). For
+instance, in the figure, Gating 0 retrieves a high-precision
+(a) Cosine similarity for next layers
+(b) Predicting accuracy for next layers
+Figure 7. Cosine similarity and predicting accuracy across
+layers of Mixtral-8x7B, where "Next i" refers to the next 𝑖-th
+layer from the current layer.
+expert due to its high importance, Gating 1 skips an ex-
+pert deemed of very low importance, and Gating 2 fetches
+a low-precision expert for moderate importance. To select
+the threshold values, we can profile the score distribution of
+all experts. As depicted in Figure 5-(b), we set 𝑇1 = 0.6 and
+𝑇2 = 0.9 for the Mixtral-8x7B model, dividing the experts
+into three groups: 67% in high precision, 30% in low preci-
+sion, and 3% to skip. This configuration maintains model
+accuracy while significantly reducing expert-loading costs.
+Due to Mixtral-8x7B’s top-2 selection mechanism, all top-1
+experts (50% of selections) receive scores of 0, ensuring they
+remain in the high-precision group.
+With this method, HOBBIT can dynamically load experts
+with the appropriate precision based on the current input
+when a cache miss occurs, significantly reducing expert-
+loading latency while maintaining both model accuracy and
+deployment flexibility.
+3.3
+Layer-level Adaptive Expert Prefetching
+To fully leverage the benefits of overlapping communication
+with computation, we require a highly accurate method for
+prefetching mixed precision experts for subsequent layers,
+while minimizing penalties from incorrect predictions. Due
+to the layer-by-layer structure of LLMs, we can explore the
+similarities between model layers to design the method.
+Similarity between layers. Due to the residual structure
+in LLMs, hidden states across consecutive layers exhibit sig-
+nificant similarity [5, 26, 36]. This suggests that the inputs
+to the gating function in the MoE module also share high
+similarity across successive layers. As shown in Figure 7-(a),
+the cosine similarity of gating inputs between two consecu-
+tive layers (labeled as "Next 1" in the figure) is notably high
+in the Mixtral-8x7B model. In fact, even the inputs for the
+next two and three layers exhibit considerable similarity. As
+5
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+Figure 8. Layer-level adaptive Expert Predictor.
+a result, we can leverage the gating input from the current
+layer to predict the required experts for subsequent layers.
+Figure 7-(b) demonstrates that the top-1 expert prediction
+accuracy for the next layer is very high, averaging 96% across
+layers. Even for the next two or three layers, the accuracy
+remains around 90% on average across all layers.
+Takeaways: We can exploit the strong layer-wise similarity
+of gating inputs to design an accurate and efficient expert
+prefetching mechanism.
+Expert predictor design. Based on these observations,
+we build the layer-level Adaptive Expert Predictor. As de-
+picted in Figure 8, we begin by predicting the experts re-
+quired for the next layer. If all predicted experts are present
+in the expert cache, we then proceed to predict for the sub-
+sequent layer. This process continues until either some pre-
+dicted experts are missing from the cache or all predictions
+are completed (𝑝gating modules per layer). For example,
+in layer 0 of the figure, the experts for layer 1 (gating 1)
+need to be preloaded, while those for layer 3 (gating 3) are
+required at layer 1 since the experts for layer 2 are already
+in the expert cache. Furthermore, we will mask all predicted
+experts to prevent them from being evicted from the expert
+cache, as they are highly likely to be used in the subsequent
+layers. And we preload versions of the experts with differ-
+ent precision levels to facilitate faster loading and minimize
+prediction penalties.
+When integrating the predictor into the system, we must
+consider both the computational overhead of the predictor
+and the penalties associated with incorrect predictions. In
+a naive approach, the gating function would be computed
+sequentially until the required experts are identified, result-
+ing in an overhead that grows linearly with the number of
+gating computations. Obviously, this method is inefficient.
+Given that one dimension of the gating module’s weight
+corresponds to the number of experts (typically small val-
+ues such as 8, 16, or 64), we can optimize the process by
+stacking all 𝑝gating modules together and computing them
+Figure 9. Preload timeline under different conditions.
+simultaneously. This approach nearly matches the computa-
+tional speed of a single gating module, taking advantage of
+the high parallel performance offered by GPUs. Therefore,
+we design the Stacking Computer module to compute all
+𝑝gating modules at once using several tensor operations,
+including stacking, matrix multiplication, and top-k selection,
+and to adaptively select the required experts for preloading.
+This stacking module efficiently identifies the required ex-
+perts while minimizing the overhead associated with the
+prefetching technique.
+Under ideal conditions, there would be no penalties asso-
+ciated with incorrect predictions from the predictor, as we
+can halt the memory copy operation upon detecting an error
+and immediately initiate the loading of the correct expert.
+However, in practical implementations, such as with cud-
+aMemcpy(), we cannot interrupt the memory copy operation
+until it completes. As a result, we must wait for the loading of
+the incorrect expert to finish before we can begin loading the
+required experts. Given the lengthy expert-loading latency,
+this can lead to significant penalties when prediction accu-
+racy is low, potentially resulting in worse performance than
+on-demand loading without predictions. As shown in Fig-
+ure 9, we can gain some benefits when prediction accuracy
+is high (Figure 9-(b)). In contrast, low prediction accuracy
+results in penalties (Figure 9-(c)) due to the time costs associ-
+ated with loading incorrect experts. However, our approach
+leverages mixed precision expert loading mechanism to mit-
+igate this issue. Comparing Figure 9-(c) with Figure 9-(e),
+we see that even with low prediction accuracy, we can still
+obtain benefits from using mixed precision expert loading,
+as it incurs much lower penalties than the original method.
+Moreover, when prediction accuracy is high, we observe
+greater benefits (Figure 9-(d)).
+Therefore, with the mixed precision expert loading method,
+HOBBIT can fully exploit the benefits of prefetching, achiev-
+ing high prediction accuracy with minimal penalties from
+incorrect prefetching.
+6
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+(a) Probability of experts used between two consecutive tokens
+(b) Frequency of experts used in different sequences
+Figure 10. Statistics of experts usage for Mixtral-8x7B.
+3.4
+Sequence-level Multidimensional Expert
+Caching
+To fully leverage the potential of the mixed precision expert
+cache, it is crucial to design an effective cache replacement
+policy that accounts for the varying loading costs of low-
+precision and high-precision experts.
+Cache replacement policies. Traditionally, Least Re-
+cently Used (LRU) and Least Frequently Used (LFU) methods
+have been employed for cache management. Previous stud-
+ies [11, 24] suggest that if an expert is used in the current
+token’s forward pass, it has a higher probability of being uti-
+lized in the next token’s forward pass, a behavior characteris-
+tic of LRU. As illustrated in Figure 10-(a), in the Mixtral-8x7B
+model, the top-1 expert used in the current token process
+has a significantly higher likelihood of being used in the next
+token process than the theoretical probability of 0.25, given
+that 2 experts are selected from a pool of 8. Moreover, the
+probability that at least one of the two experts used in the
+current token process will be reused in the next token ex-
+ceeds the theoretical value of 0.46 for this model. Therefore,
+LRU presents a viable option.
+While MoE models are typically trained with an auxiliary
+loss to promote uniform expert selection, the frequency of
+expert selection varies at the sequence level. Figure 10-(b)
+shows that different sequences exhibit preferences for spe-
+cific experts in different layers. Therefore, a sequence-level
+LFU can also be a possible option. Furthermore, due to the
+layer-wise structure of these models, experts from nearer
+layers are more likely to be used, which we refer to as the
+Farthest Layer Distance (FLD) policy. Naturally, FLD also
+impacts cache performance.
+(a) Frequency of mixed precision expert usage
+(b) Behaviors of LFU and LHU
+Figure 11. Statistics of mixed precision expert usage in one
+layer of Mixtral-8x7B.
+For our special mixed precision expert cache, it is neces-
+sary to define a specialized cache miss penalty rather than
+relying solely on the cache miss ratio to evaluate replace-
+ment policies, as experts of different precisions incur differ-
+ent penalties. Specifically, if an expert is missed, the cost of
+loading its high-precision version is 𝐶, while the cost for
+the low-precision version is 𝐵𝑙
+𝐵ℎ𝐶, where 𝐵𝑙and 𝐵ℎare the
+bit-widths of the low- and high-precision versions, respec-
+tively. For instance, if an int4 precision expert is used as a
+replacement for a float16 precision expert, missing the high-
+precision expert would incur four times the cost compared
+to missing the low-precision expert. Therefore, a new pol-
+icy is required to handle the mixed precision scenario and
+minimize the miss penalties effectively.
+Takeaways: Model-specific behaviors and mixed precision
+characteristics necessitate a comprehensive caching policy that
+integrates multiple replacement strategies.
+Cache Manager design. To minimize cache miss penal-
+ties in the mixed precision expert cache, we propose the
+Least High Precision Frequently Used (LHU) method, which
+prioritizes frequently used high-precision experts, as cache
+misses for these experts incur significantly higher latency
+compared to low-precision ones. Similar to LFU, we track
+the number of times each expert’s high-precision version
+is used. As shown in Figure 11-(a), the frequency of high-
+precision usage is not always the same as the total frequency
+of usage. For example, expert 4 has a high total usage fre-
+quency but a low high-precision frequency, while expert 6
+has a higher high-precision frequency despite a lower total
+usage frequency compared to expert 4. Consequently, LFU
+would prioritize expert 4, while LHU would prioritize expert
+6, making LHU a distinct policy from LFU in this context.
+Figure 11-(b) shows the performance comparison between
+LFU and LHU for these experts. The results indicate that
+LHU causes more cache misses for expert 4, especially for
+its low-precision version, while LFU keeps expert 4 in the
+cache with fewer misses. However, for expert 6, LHU gives
+higher priority and results in fewer misses, especially for
+7
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+Figure 12. Sequence-level multidimensional Cache Manager.
+the high-precision version. Since expert 6 relies more on
+high-precision versions, LHU reduces cache miss penalties
+more effectively than LFU (here, suppose a high-precision
+miss incurs a penalty of 1, while a low-precision miss incurs
+a penalty of 1
+4), even though it performs worse for expert 4.
+A similar pattern can be observed with expert 0 and expert 2.
+Overall, for these experts, LHU reduces cache miss penalties
+by about 15% compared to LFU totally. Therefore, LHU is a
+more suitable policy in our specific scenario than LFU.
+To leverage the strengths of the above four policies, we
+combine them by assigning weights to each and summing
+them to determine the final priority for each expert. We
+define the priority of an expert 𝑡as follows:
+
+
+𝑝𝑡= 𝑤lru𝑝lru
+𝑡
++ 𝑤lfu𝑝lfu
+𝑡
++ 𝑤lhu𝑝lhu
+𝑡
++ 𝑤fld𝑝fld
+𝑡
+𝑤lru + 𝑤lfu + 𝑤lhu + 𝑤fld = 1
+𝑝lru
+𝑡
+= 𝑅𝑡
+𝑇;𝑝lfu
+𝑡
+= 𝐹𝑡
+𝑇;𝑝lhu
+𝑡
+= 𝐻𝑡
+𝑇;𝑝fld
+𝑡
+= 1 −(𝑙𝑡−𝑙𝑖+𝑙𝑛)%𝑙𝑛
+𝑙𝑛
+(3)
+Where 𝑅𝑡represents the last-used time of expert 𝑡, 𝐹𝑡denotes
+the frequency of use in the current processing sequence,
+𝐻𝑡is the frequency of high-precision usage in the current
+sequence, 𝑇is the current token number, 𝑙𝑖is the layer ID
+of the currently used expert, 𝑙𝑡is the layer ID of expert
+𝑡, and 𝑙𝑛is the total number of layers in the model. The
+four weights are hyperparameters set by the user, and we
+determine suitable values by minimizing the mixed precision
+expert cache miss penalties on a calibration dataset.
+Using this equation, we can identify the expert 𝑗with the
+lowest priority in the cache, relative to the current expert
+𝑖, and replace 𝑗with 𝑖. As shown in Figure 12, We build the
+Multidimensional Cache Manager based on this equation
+and data recording. The Cache Manager maintains separate
+caches for high- and low-precision experts, with the high-
+precision cache typically being larger than the low-precision
+cache. Whenever a high-precision expert 𝑒𝑖is added to the
+cache (a cache miss), The Policy Performer module in Cache
+Manager will update corresponding LRU, LFU, and LHU
+records and determine the lowest-priority expert 𝑒𝑗based
+on Equation (3) and data in the priority record. The Pol-
+icy Performer then evict 𝑒𝑗and replace it with 𝑒𝑖in the
+Figure 13. The implementation of HOBBIT.
+high-precision cache. Similarly, for a low-precision expert
+𝑒𝑥, The Policy Performer performs the same operation: up-
+date records, evict 𝑒𝑦from the low-precision cache, and store
+𝑒𝑥, though LHU record is not updated for low-precision ex-
+perts. On a cache hit, The Policy Performer only updates the
+relevant records (e.g., 𝑒𝑘and 𝑒𝑧in the figure). Additionally, at
+the start of each new sequence, The Policy Performer resets
+the LRU, LFU and LHU records.
+By fully leveraging the characteristics of MoE models and
+unique features of mixed expert cache, The Multidimensional
+Cache Manager can efficiently manage the cache and achieve
+lower cache miss penalties than previous approaches, result-
+ing in faster inference.
+4
+System Implementation
+We build our system on top of Llama.cpp by modifying the
+distribution of model weights and computation patterns,
+implemented with 8,000 lines of C++/C code. The Llama.cpp
+system places a sufficient number of layers in GPU memory,
+with the remaining layers stored in CPU memory or on SSD.
+It processes input on the GPU using layers in GPU memory,
+then sends the internal activations of the last GPU-processed
+layer to the CPU. It continues processing with the remaining
+layers on the CPU, and finally gets the results. While this
+computation pattern works well for dense models, it is not
+optimal for MoE-based LLMs.
+To optimize our system for MoE models, we modify the
+distribution of model weights. As illustrated in Figure 13,
+we place all non-expert weights and a portion of experts,
+in multiple precision versions, in GPU memory, and all ex-
+pert weights reside in CPU memory. To ensure the system
+performs efficiently across various hardware setups, we im-
+plement two computing modes: GPU-centric computing and
+CPU-GPU cooperative computing.
+In the GPU-centric computing mode, when ①input 𝑥is
+processed, the main thread ②handles it on the GPU using the
+corresponding model weights. If the required expert are not
+in GPU memory, the scheduler thread ③loads the appropri-
+ate version of the expert from CPU memory or SSD through
+8
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+Table 1. Configuration of two evaluated MoE models.
+Mixtral-8x7B
+Phi-MoE
+Total Parameters
+45B
+42B
+Actived Parameters/Token
+14B
+6.6B
+Total Weight Size
+87GB
+78GB
+Experts Weight Size
+84GB(96%)
+75GB(96%)
+Layer Number
+32
+32
+Expert Number/Layer
+8
+16
+Top-K
+2
+2
+specific interfaces. Once the required expert is loaded into
+GPU memory, the main thread ⑦resumes computation and
+eventually ⑧transfers the final results back to the CPU.
+In the CPU-GPU cooperative computing mode, if the re-
+quired expert is not in GPU memory, the main thread ④
+sends the expert’s input to the CPU, where a helper thread
+⑤processes it using the corresponding expert. The helper
+thread then ⑥sends the expert’s output back to the GPU.
+Once receiving the data, the main thread ⑦continues the
+computation and ⑧copies the results back to the CPU.
+While both computing modes work well for MoE models,
+we primarily focus on the GPU-centric computing mode, as
+CPU resources are typically insufficient on edge devices.
+5
+Experimental Evaluation
+5.1
+Experimental Methodoloy
+Hardware. To evaluate HOBBIT in different environments,
+we use two common edge devices: the NVIDIA GeForce RTX
+4090 [37] and the NVIDIA Jetson AGX Orin [38]. In our
+setup, the RTX 4090 has 24GB of GPU memory, 256GB of
+CPU memory, and 64 CPU cores. The connection between
+the CPU and GPU is via PCIe 4.0, offering a theoretical band-
+width of 32GB/s. The Jetson Orin, on the other hand, has
+32GB of unified memory, shared with its 12 CPU cores. For
+model weight storage, we use a Samsung NVMe SSD 980
+PRO [41], which provides a theoretical read speed of 7,000
+MB/s (around 3,000 MB/s in practice).
+Models. We evaluate our system using two popular MoE-
+based LLMs from Huggingface Hub [12]: Mixtral-8x7B [24]
+and Phi-MoE [1]. As shown in Table 1, Mixtral-8x7B has 45
+billion parameters across 32 layers, with 8 experts per layer.
+For each token, 2 experts are selected per layer, activating
+14 billion parameters during a forward pass. Phi-MoE, on
+the other hand, has 42 billion parameters across 32 layers,
+with 16 experts per layer, activating 6.6 billion parameters
+per forward pass.
+Datasets. To test the generation speed of models, we ex-
+tract 60 high-quality samples from the Alpaca [45] dataset.
+Half of these samples have an input length of 16, while the
+other half have an input length of 128. To evaluate the im-
+pact of HOBBIT on model accuracy, we use GSM8K [7] and
+Table 2. Configuration of three testing groups.
+Hardware Setup
+Model Version
+Methods
+Jetson AGX Orin
+Int8
+HB, LL, MI
+GeForce RTX 4090
+Float16
+HB, TF, DS, MO, MI
+RTX 4090 + CPU
+Float16
+HB, LL, FD
+TruthfulQA [33] as performance evaluation datasets. GSM8K
+is designed to assess the model’s mathematical reasoning
+abilities, while TruthfulQA is used to measure whether a
+language model generates truthful answers.
+Baselines. We compare HOBBIT (HB) with six SOTA in-
+ference systems to evaluate its efficiency. (1) Transform-
+ers [50] (TF), A general LLM library developed by Hugging-
+face, offering thousands of pretrained models. (2) DeepSpeed-
+Inference [3] (DS), A comprehensive inference system for
+LLMs, providing multi-GPU and heterogeneous inference
+solutions. (3) Llama.cpp [16] (LL), An efficient LLM infer-
+ence system written in pure C/C++, supporting simultaneous
+computation on both CPU and GPU. (4) MoE-Offloading [11]
+(MO), A MoE-centric system that incorporates expert predic-
+tion and caching. (5) MoE-Infinity [52] (MI), A system that
+tracks request-level processes to prefetch required experts
+into GPU memory. (6) Fiddler [25] (FD), a system that lever-
+ages CPU computation to minimize data movement between
+the CPU and GPU. Additionally, since some systems do not
+natively support the Phi-MoE model, we integrated it into
+them following their respective guidelines.
+Configurations. Due to platform differences, we use differ-
+ent configurations to evaluate baselines. On the RTX 4090, we
+employ two models with float16 precision. Since Llama.cpp
+and Fiddler utilize CPU computation, which follows a differ-
+ent computational pattern from other methods, we compare
+them separately for fairness. On the Jetson Orin, we use the
+int8 precision versions, as the float16 versions are too large
+and slow to run due to the SSD’s slow read speed. Addition-
+ally, we only evaluate Llama.cpp and MoE-Infinity on the
+Jetson Orin, as the other baselines perform poorly on this
+device. Furthermore, for HOBBIT , we use int4 precision
+versions as replacements for the float16 precision models
+and int2 versions for the int8 precision models to support
+dynamic precision expert loading. Overall, there are three
+comparison group settings, as shown in Table 2.
+Metrics. Since the generation process of LLMs consists of
+two phases (the prefill stage and the decoding stage), we use
+prefill latency (in seconds) and decoding speed (in tokens
+per second) as our performance metrics. To strengthen and
+diversify the results, we set four testing groups with different
+input and output lengths, including [16, 32], [16, 128], [128,
+32], [128,128]. And we set the batch size to 1 in all cases, fol-
+lowing prior works [11, 22, 27, 54], as edge-side continuous
+serving scenarios often focus on single-batch inference.
+9
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+(a) Mixtral-8x7B on Jetson Orin
+(b) Phi-MoE on Jetson Orin
+(c) Mixtral-8x7B on RTX 4090
+(d) Phi-MoE on RTX 4090
+Figure 14. Comparison of inference speed for HOBBIT and the SOTA approaches.
+5.2
+End-to-End Performance
+To evaluate the inference speed of HOBBIT, we conduct the
+experiments outlined in Table 2 and obtain the results shown
+in Figure 14.
+From Figure 14-(a) and (b), we can observe that HOB-
+BIT delivers the best performance in terms of both decod-
+ing speed and prefill latency for the evaluated models on
+the Jetson AGX Orin, outperforming both Llama.cpp and
+MoE-Infinity. Llama.cpp utilizes the mmap() interface for fast
+model loading, but this can result in severe page faults when
+there is insufficient CPU memory to store the model weights.
+Since Jetson AGX Orin shares memory between the CPU
+and GPU, allocating memory for GPU computation leaves
+limited memory available for the CPU, leading to perfor-
+mance degradation due to frequent page faults. MoE-Infinity,
+primarily designed for GPU servers, also faces challenges on
+Jetson AGX Orin due to the slower SSD read speeds. Com-
+pared to Llama.cpp, HOBBIT achieves an average speedup
+of 13.0x for Mixtral-8x7B and 18.9x for Phi-MoE in decoding
+speed, along with a 79% and 80% reduction in prefill latency
+for these two models, respectively. Although HOBBIT is
+built on Llama.cpp, it shows significantly greater advantages
+when deploying MoE-based LLMs on edge embedded de-
+vices. In comparison to MoE-Infinity, HOBBIT delivers an
+average speedup of 3.64x and 9.93x in decoding speed, along
+with a 60% and 72% reduction in prefill latency for these
+two evaluated models, respectively. These improvements are
+largely attributed to its dynamic precision expert loading
+mechanism, which reduces the volume of data to be read,
+thereby accelerating inference speed.
+On the GeForce RTX 4090, the results shown in Figure 14-
+(c) and (d) demonstrate that HOBBIT again outperforms
+the other baselines. Transformers and DeepSpeed-Inference
+show poor performance compared to MoE-based systems,
+as they do not leverage the sparse activation feature of MoE
+Table 3. Model accuracy with mixed precision experts.
+GSM8K
+( accuracy)
+TruthfulQA
+(truth, info)
+Mixtral-8x7B
+Float16
+0.52
+0.49, 0.94
+Float16+Int4
+0.51
+0.49, 0.93
+Mixtral-8x7B
+Int8
+0.52
+0.50, 0.91
+Int8+Int2
+0.51
+0.52, 0.90
+Phi-MoE
+Float16
+0.83
+0.82, 0.92
+Float16+Int4
+0.82
+0.82, 0.93
+Phi-MoE
+Int8
+0.83
+0.82, 0.93
+Int8+Int2
+0.83
+0.82, 0.93
+and load model parameters layer by layer on-demand. MoE-
+Offloading and MoE-Infinity exhibit varying performance in
+decoding speed depending on the model, with MoE-Infinity
+performing better on Mixtral-8x7B, while MoE-Offloading
+excels with Phi-MoE. However, MoE-Infinity consistently
+achieves lower prefill latency than MoE-Offloading for its
+good prefetching technique. Despite outperforming Trans-
+formers and DeepSpeed-Inference, both MoE-Offloading and
+MoE-Infinity suffer from long expert-loading latency. In con-
+trast, compared to MoE-Offloading, HOBBIT, by leverag-
+ing dynamic precision expert loading, delivers an average
+speedup of 3.21x for Mixtral-8x7B and 3.29x for Phi-MoE in
+decoding speed, along with a 51% and 54% reduction in prefill
+latency, respectively. Compared to MoE-Infinity, HOBBIT
+achieves a 2.30x and 3.92x speedup in decoding speed and a
+14% and 29% reduction in prefill latency for these two mod-
+els, respectively. Therefore, on edge server platforms with
+sufficient CPU memory to store model parameters, HOBBIT
+continues to perform well for running MoE-based LLMs.
+10
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+(a) Results of Mixtral-8x7B
+(b) Results of Phi-MoE
+Figure 15. Inference speed for RTX 4090 + CPU setup.
+Overall, our system achieves significant speedup in decod-
+ing speed and a large reduction in prefill latency compared to
+the baselines across different environments, demonstrating
+its superior efficiency.
+5.3
+Model Accuracy
+Since we use low precision experts to replace high precision
+experts for faster expert loading, it is crucial to verify the
+model’s accuracy to ensure that our system does not com-
+promise performance. As shown in Table 3, we report the
+average top-1 accuracy for GSM8K, as well as the truthful
+and informative scores for TruthfulQA, following the official
+guidelines. After applying the mixed precision expert policy,
+the model accuracy decreases by no more than 1% across
+both tested datasets for all evaluated models. This demon-
+strates that our system achieves high inference speed while
+maintaining model accuracy.
+5.4
+CPU Computation Assistant
+Although we primarily focus on common GPU-centric sce-
+narios, sometimes there are enough CPU resources to help
+speed up the computation. To accommodate such cases, we
+implement a CPU-GPU cooperative computing mode to en-
+hance system flexibility and maximize hardware resource
+utilization. We evaluate this computing mode using the RTX
+4090 + CPU setup in Table 2.
+From the results in Figure 15, we can observe that HOBBIT
+consistently outperforms Llama.cpp in decoding speed. For
+prefill latency, HOBBIT only uses the GPU during the prefill
+stage, which allows it to perform well with longer prompts
+(128 tokens) but shows reduced performance with shorter
+prompts (16 tokens). On average, HOBBIT achieves lower
+prefill latency than Llama.cpp. Specifically, HOBBIT delivers
+a 1.31x and 1.42x speedup in decoding speed, along with a
+Figure 16. Inference speedup of dynamic expert loading.
+25% and 40% reduction in prefill latency for the two evaluated
+models, respectively.
+Fiddler shows a very slight advantage on Mixtral-8x7B
+compared to our system in decoding speed, which stems from
+Fiddler’s faster CPU computation speed. Fiddler processes
+the same expert in 3ms, compared to 5ms for our system,
+due to differences in implementation (Fiddler uses PyTorch’s
+interface, while our system relies on Llama.cpp’s interface).
+However, HOBBIT surpasses Fiddler on Phi-MoE, where the
+smaller expert size leads to similar CPU computation speeds
+for both interfaces. Additionally, Fiddler’s prefill latency in-
+creases exponentially with the number of experts, which
+affects its performance with Phi-MoE, where the number
+of experts is double that of Mixtral-8x7B, resulting in much
+higher prefill latency for Fiddler. As a result, Fiddler’s advan-
+tage is limited to specific situations and is not well-suited
+for different models and environments. Compared to Fiddler,
+HOBBIT achieves a 0.99x and 1.46x speedup in decoding
+speed, and a 42% and 85% reduction in prefill latency for the
+two evaluated models, respectively.
+Although utilizing the CPU as a helper is not the pri-
+mary scenario for HOBBIT and it doesn’t experience the
+long expert-loading delays typical of other expert-offloading
+systems, HOBBIT still provides better performance than cur-
+rent systems, even if the benefits are smaller compared to
+GPU-centric computation scenarios.
+5.5
+Ablation Study
+To verify the effectiveness of each component in HOBBIT, we
+separately evaluate the dynamic expert loading mechanism,
+adaptive expert prefetching technique, and multidimensional
+expert caching policy.
+5.5.1
+Dynamic Expert Loading Mechanism Analysis.
+To evaluate the benefits of the dynamic expert loading mech-
+anism, we test models across all setups and averaged the
+results for different input and output lengths. As shown in
+Figure 16, using the dynamic loading mechanism provides
+a speedup ranging from 1.19x to 1.57x under different con-
+figurations. The highest speedup is observed when running
+models on the Jetson Orin device, which is due to its rela-
+tively slower data transfer speeds compared to the RTX 4090.
+Conversely, the lowest speedup is seen on the RTX 4090
+assisted by the CPU, as in this setup, the performance gains
+11
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+(a) Gating module cost
+(b) Model inference speed
+Figure 17. Gating module cost and model inference speed
+with different configurations of the adaptive predictor, where
+0 means no prediction, and 1, 2, 3, and 4 represent predictions
+for 1, 2, 3, and 4 subsequent layers, respectively.
+primarily stem from CPU computing improvements with
+low-precision experts, rather than faster expert loading. Ad-
+ditionally, we observe that the Mixtral-8x7B model achieves
+a greater speedup than the Phi-MoE model, likely due to the
+larger expert sizes in the Mixtral-8x7B model. Overall, these
+findings suggest that the dynamic expert loading mechanism
+is especially advantageous in environments with slower data
+transfer speeds and for models with larger experts.
+5.5.2
+Adaptive Expert Prefetching Technique Analy-
+sis. We first evaluate the stacking operation in our design.
+As shown in Figure 17-(a), as the number of predicting layers
+increases, the sequential operation time increases linearly,
+whereas our stacking operation remains stable, confirming
+our previous analysis. Next, to assess the benefits of the
+adaptive expert prefetching technique, we conducted experi-
+ments on the RTX 4090 setup, comparing performance with
+and without the dynamic expert loading. As illustrated in
+Figure 17-(b), the prefetching technique provides notable
+advantages during the prefill stage, reducing prefill latency
+by approximately 10% across all cases. This is because, in
+most cases, the prefill stage utilizes all experts of each layer,
+resulting in 100% prediction accuracy. However, during the
+decoding stage, the prefetching technique offers only modest
+benefits due to the high penalties incurred from incorrect
+predictions, aligning with previous analysis in Section 3.3.
+Without the dynamic expert loading (Float16), the prefetch-
+ing technique yields minimal performance improvements
+(1.01x speedup for Mixtral-8x7B) and even slightly degrades
+processing speed for Phi-MoE, likely due to slightly lower
+(a) Different cache policies
+(b) Model level vs sequence level
+Figure 18. Cache performance for different strategies.
+prediction accuracy. However, when combined with the dy-
+namic expert loading (Float16+Int4), the prefetching tech-
+nique begins to show its value, offering a speedup of approx-
+imately 1.05x in both Mixtral-8x7B and Phi-MoE models.
+Additionally, we observe that the value of 𝑝influences per-
+formance and larger values of 𝑝may lead to slightly worse
+outcomes. Based on our tests, we recommend setting 𝑝in
+range 1 to 3. Overall, with our dynamic precision expert
+loading method, the adaptive expert prefetching technique
+can fully capitalize on its potential.
+5.5.3
+Multidimensional Expert Caching Policy Anal-
+ysis. To verify the robustness of our proposed cache replace-
+ment policy, we compared it with other commonly used poli-
+cies across different settings. As shown in Figure 18-(a), our
+policy consistently achieves the lowest cache miss penalty
+(normalized with random policy baseline, with the reduc-
+tion compared to LFU highlighted, as LFU is the best among
+the baselines). Although the improvements may be small in
+some conditions, our policy is flexible and reliable across var-
+ious models and environments, while other methods exhibit
+inconsistent performance. For example, LRU works well for
+the Phi-MoE model on the Orin device, but performs poorly
+for the Mixtral-8x7B model on the same device. Overall, our
+policy shows a 4.69% ∼8.68% cache miss penalty reduction
+over LRU and a 2.13% ∼4.19% reduction over LFU. Addi-
+tionally, we compared the model-level and sequence-level
+performance of different policies, as shown in Figure 18-(b).
+The sequence level primarily affects LFU policies, where
+sequence-level LFU gains a 4.5% increase in hit ratio. This
+behavior is expected, as the balanced loss function in the
+training process of MoE-based LLMs encourages equal fre-
+quency of expert selection, as discussed earlier. In contrast,
+other policies perform similarly across both model-level and
+sequence-level conditions. Therefore, a sequence-level policy
+is more suitable for MoE when considering the LFU strategy.
+6
+Related Work
+Expert-offloading systems for MoE-based LLMs. Given
+the significant GPU memory requirements of MoE-based
+LLMs, many systems have been developed to optimize infer-
+ence on memory-constrained devices by offloading expert
+12
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+parameters to CPU memory or SSD. Some systems, such as
+MoE-Offloading [11], MoE-Infinity [52], Pre-gated MoE [22],
+and SwapMoE [27], focus on optimizing prefetching tech-
+niques and cache replacement policies. Others, like Edge-
+MoE [54] and AdapMoE [58], aim to reduce expert-loading
+costs. Additionally, approaches such as Fiddler [25] leverage
+CPU computational power to assist in the inference pro-
+cess. However, these systems do not fully exploit the key
+characteristics of MoE-based LLMs, resulting in large expert-
+loading costs or big drops in model accuracy on edge devices.
+Optimized inference systems for LLMs. The large size
+and complexity of LLMs have driven the development of
+various inference systems aimed at optimizing the efficiency
+and performance of the inference process. Some of these
+works focus on adaptive offloading, such as VLLM [28], Deep-
+Speed [3], Accelerate [18] and Llama.cpp [16], which speed
+up inference by offloading model weights or internal acti-
+vations to alternative hardware, such as CPU memory or
+SSDs. Other works focus on exploiting the sparsity in LLMs
+to reduce computational cost and memory consumption by
+skipping the computation of inactive neurons. Examples
+include Deja Vu [34], PowerInfer [43, 53], and CATS [29].
+However, these systems have primarily been designed to
+target dense LLMs, where all model parameters are utilized
+uniformly across different inputs. As a result, they often fail
+to exploit the unique characteristics of MoE-based LLMs.
+Model compression techniques for LLMs. Model com-
+pression is a promising area of research that offers various
+techniques to effectively deploy LLMs in resource-constrained
+environments. The core idea of model compression is to re-
+duce the size of a large model while preserving its perfor-
+mance. Popular compression techniques, such as quantiza-
+tion [9, 14, 48, 51], network pruning [32, 35, 36, 44], knowl-
+edge distillation [2, 17, 20], and low-rank factorization [31,
+49, 55], enable the creation of more resource-efficient LLMs.
+However, these methods only focus on algorithmic optimiza-
+tion, so they often overlook the practical challenges of de-
+ploying LLMs on resource-constrained devices, leading to
+inefficient deployments.
+7
+Conclusion
+In this work, we introduce HOBBIT, a flexible and efficient in-
+ference system for deploying MoE LLM models on memory-
+constrained edge devices. By addressing the high cost associ-
+ated with expert loading in existing MoE inference systems,
+HOBBIT enables significant speedups in inference perfor-
+mance. Additionally, we have integrated HOBBIT into the
+Llama.cpp inference framework. This integration allows for
+flexible scalability across a wide range of platforms. Overall,
+HOBBIT represents a significant step forward in making
+complex MoE models more accessible and practical for edge
+computing environments.
+References
+[1] Marah Abdin, Sam Ade Jacobs, Ammar Ahmad Awan, Jyoti Aneja,
+Ahmed Awadallah, Hany Awadalla, Nguyen Bach, Amit Bahree, Arash
+Bakhtiari, Harkirat Behl, et al. Phi-3 technical report: A highly capable
+language model locally on your phone. arXiv preprint arXiv:2404.14219,
+2024.
+[2] Rishabh Agarwal, Nino Vieillard, Piotr Stanczyk, Sabela Ramos,
+Matthieu Geist, and Olivier Bachem. Gkd: Generalized knowledge
+distillation for auto-regressive sequence models.
+arXiv preprint
+arXiv:2306.13649, 2023.
+[3] Reza Yazdani Aminabadi, Samyam Rajbhandari, Ammar Ahmad Awan,
+Cheng Li, Du Li, Elton Zheng, Olatunji Ruwase, Shaden Smith, Minjia
+Zhang, Jeff Rasley, and Yuxiong He. Deepspeed- inference: Enabling
+efficient inference of transformer models at unprecedented scale. In
+SC22: International Conference for High Performance Computing, Net-
+working, Storage and Analysis, pages 1–15, 2022.
+[4] Apple. Introducing apple’s on-device and server foundation mod-
+els. https://machinelearning.apple.com/research/introducing-apple-
+foundation-models, 2024.
+[5] Xiaodong Chen, Yuxuan Hu, and Jing Zhang. Compressing large
+language models by streamlining the unimportant layer. arXiv preprint
+arXiv:2403.19135, 2024.
+[6] Xiangxiang Chu, Limeng Qiao, Xinyu Zhang, Shuang Xu, Fei Wei,
+Yang Yang, Xiaofei Sun, Yiming Hu, Xinyang Lin, Bo Zhang, et al.
+Mobilevlm v2: Faster and stronger baseline for vision language model.
+arXiv preprint arXiv:2402.03766, 2024.
+[7] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Hee-
+woo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton,
+Reiichiro Nakano, Christopher Hesse, and John Schulman. Training
+verifiers to solve math word problems. arXiv preprint arXiv:2110.14168,
+2021.
+[8] DeepSeek-AI.
+Deepseek-v2: A strong, economical, and efficient
+mixture-of-experts language model, 2024.
+[9] Tim Dettmers, Mike Lewis, Younes Belkada, and Luke Zettlemoyer.
+Gpt3. int8 (): 8-bit matrix multiplication for transformers at scale.
+Advances in Neural Information Processing Systems, 35:30318–30332,
+2022.
+[10] David Eigen, Marc’Aurelio Ranzato, and Ilya Sutskever.
+Learn-
+ing factored representations in a deep mixture of experts.
+CoRR,
+abs/1312.4314, 2013.
+[11] Artyom Eliseev and Denis Mazur. Fast inference of mixture-of-experts
+language models with offloading. arXiv preprint arXiv:2312.17238, 2023.
+[12] Hugging Face. Hugging face hub. https://huggingface.co/docs/hub/
+index, 2024.
+[13] William Fedus, Barret Zoph, and Noam Shazeer. Switch transformers:
+scaling to trillion parameter models with simple and efficient sparsity.
+J. Mach. Learn. Res., 23(1), jan 2022.
+[14] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh. Gptq:
+Accurate post-training quantization for generative pre-trained trans-
+formers. arXiv preprint arXiv:2210.17323, 2022.
+[15] Othmane Friha, Mohamed Amine Ferrag, Burak Kantarci, Burak Cak-
+mak, Arda Ozgun, and Nassira Ghoualmi-Zine. Llm-based edge intelli-
+gence: A comprehensive survey on architectures, applications, security
+and trustworthiness. IEEE Open Journal of the Communications Society,
+2024.
+[16] Georgi Gerganov. ggerganov/llama.cpp: Port of facebook’s llama
+model in c/c++. https://github.com/ggerganov/llama.cpp, 2023.
+[17] Yuxian Gu, Li Dong, Furu Wei, and Minlie Huang. Knowledge dis-
+tillation of large language models. arXiv preprint arXiv:2306.08543,
+2023.
+[18] Sylvain Gugger, Lysandre Debut, Thomas Wolf, Philipp Schmid,
+Zachary Mueller, Sourab Mangrulkar, Marc Sun, and Benjamin Bossan.
+Accelerate: Training and inference at scale made simple, efficient and
+adaptable. https://github.com/huggingface/accelerate, 2022.
+13
+
+Conference’17, July 2017, Washington, DC, USA
+Peng Tang et al.
+[19] J.B. Hampshire and A. Waibel. The meta-pi network: building dis-
+tributed knowledge representations for robust multisource pattern
+recognition. IEEE Transactions on Pattern Analysis and Machine Intelli-
+gence, 14(7):751–769, 1992.
+[20] Yukun Huang, Yanda Chen, Zhou Yu, and Kathleen McKeown. In-
+context learning distillation: Transferring few-shot learning ability of
+pre-trained language models. arXiv preprint arXiv:2212.10670, 2022.
+[21] Huawei. Beating google and apple, huawei brings large ai model
+to mobile voice assistant. https://www.huaweicentral.com/beating-
+google-and-apple-huawei-brings-large-ai-model-to-mobile-voice-
+assistant/, 2023.
+[22] Ranggi Hwang, Jianyu Wei, Shijie Cao, Changho Hwang, Xiaohu
+Tang, Ting Cao, and Mao Yang. Pre-gated moe: An algorithm-system
+co-design for fast and scalable mixture-of-expert inference. In 2024
+ACM/IEEE 51st Annual International Symposium on Computer Architec-
+ture (ISCA), pages 1018–1031. IEEE, 2024.
+[23] Robert Jacobs, Michael Jordan, Steven Nowlan, and Geoffrey Hinton.
+Adaptive mixture of local expert. Neural Computation, 3:78–88, 02
+1991.
+[24] Albert Q Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch,
+Blanche Savary, Chris Bamford, Devendra Singh Chaplot, Diego de las
+Casas, Emma Bou Hanna, Florian Bressand, et al. Mixtral of experts.
+arXiv preprint arXiv:2401.04088, 2024.
+[25] Keisuke Kamahori, Yile Gu, Kan Zhu, and Baris Kasikci. Fiddler: Cpu-
+gpu orchestration for fast inference of mixture-of-experts models.
+arXiv preprint arXiv:2402.07033, 2024.
+[26] Bo-Kyeong Kim, Geonmin Kim, Tae-Ho Kim, Thibault Castells,
+Shinkook Choi, Junho Shin, and Hyoung-Kyu Song. Shortened llama:
+A simple depth pruning for large language models. arXiv preprint
+arXiv:2402.02834, 2024.
+[27] Rui Kong, Yuanchun Li, Qingtian Feng, Weijun Wang, Xiaozhou Ye,
+Ye Ouyang, Linghe Kong, and Yunxin Liu. SwapMoE: Serving off-
+the-shelf MoE-based large language models with tunable memory
+budget. In Lun-Wei Ku, Andre Martins, and Vivek Srikumar, editors,
+Proceedings of the 62nd Annual Meeting of the Association for Computa-
+tional Linguistics (Volume 1: Long Papers), pages 6710–6720, Bangkok,
+Thailand, August 2024. Association for Computational Linguistics.
+[28] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin
+Zheng, Cody Hao Yu, Joseph Gonzalez, Hao Zhang, and Ion Stoica.
+Efficient memory management for large language model serving with
+pagedattention. In Proceedings of the 29th Symposium on Operating
+Systems Principles, pages 611–626, 2023.
+[29] Je-Yong Lee, Donghyun Lee, Genghan Zhang, Mo Tiwari, and Azalia
+Mirhoseini. Cats: Contextually-aware thresholding for sparsity in
+large language models. arXiv preprint arXiv:2404.08763, 2024.
+[30] Jiamin Li, Qiang Su, Yitao Yang, Yimin Jiang, Cong Wang, and Hong
+Xu. Adaptive gating in mixture-of-experts based language models.
+arXiv preprint arXiv:2310.07188, 2023.
+[31] Pingzhi Li, Zhenyu Zhang, Prateek Yadav, Yi-Lin Sung, Yu Cheng,
+Mohit Bansal, and Tianlong Chen. Merge, then compress: Demys-
+tify efficient smoe with hints from its routing policy. arXiv preprint
+arXiv:2310.01334, 2023.
+[32] Yixiao Li, Yifan Yu, Qingru Zhang, Chen Liang, Pengcheng He, Weizhu
+Chen, and Tuo Zhao. Losparse: Structured compression of large lan-
+guage models based on low-rank and sparse approximation. In Inter-
+national Conference on Machine Learning, pages 20336–20350. PMLR,
+2023.
+[33] Stephanie Lin, Jacob Hilton, and Owain Evans. Truthfulqa: Measuring
+how models mimic human falsehoods. arXiv preprint arXiv:2109.07958,
+2021.
+[34] Zichang Liu, Jue Wang, Tri Dao, Tianyi Zhou, Binhang Yuan, Zhao
+Song, Anshumali Shrivastava, Ce Zhang, Yuandong Tian, Christopher
+Re, et al. Deja vu: Contextual sparsity for efficient llms at inference
+time. In International Conference on Machine Learning, pages 22137–
+22176. PMLR, 2023.
+[35] Xinyin Ma, Gongfan Fang, and Xinchao Wang. Llm-pruner: On the
+structural pruning of large language models. Advances in neural infor-
+mation processing systems, 36:21702–21720, 2023.
+[36] Xin Men, Mingyu Xu, Qingyu Zhang, Bingning Wang, Hongyu Lin,
+Yaojie Lu, Xianpei Han, and Weipeng Chen. Shortgpt: Layers in large
+language models are more redundant than you expect. arXiv preprint
+arXiv:2403.03853, 2024.
+[37] NVIDIA. Geforce rtx 4090. https://www.nvidia.com/en-us/geforce/
+graphics-cards/40-series/rtx-4090/, 2024.
+[38] NVIDIA. Jetson agx orin developer kit. https://www.nvidia.com/en-
+us/autonomous-machines/embedded-systems/jetson-orin/, 2024.
+[39] Samyam Rajbhandari, Olatunji Ruwase, Jeff Rasley, Shaden Smith, and
+Yuxiong He. Zero-infinity: Breaking the gpu memory wall for extreme
+scale deep learning. In Proceedings of the international conference for
+high performance computing, networking, storage and analysis, pages
+1–14, 2021.
+[40] Qualcomm
+AI
+Research.
+World’s
+first
+on-device
+demon-
+stration of stable diffusion on an android phone.
+https:
+//www.qualcomm.com/news/onq/2023/02/worlds-first-on-device-
+demonstration-of-stable-diffusion-on-android, 2023.
+[41] Samsung. Samsung pcie 4.0 nvme ssd 980 pro. https://semiconductor.
+samsung.com/jp/consumer-storage/internal-ssd/980pro/, 2024.
+[42] Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis,
+Quoc Le, Geoffrey Hinton, and Jeff Dean. Outrageously large neural
+networks: The sparsely-gated mixture-of-experts layer. arXiv preprint
+arXiv:1701.06538, 2017.
+[43] Yixin Song, Zeyu Mi, Haotong Xie, and Haibo Chen. Powerinfer:
+Fast large language model serving with a consumer-grade gpu. arXiv
+preprint arXiv:2312.12456, 2023.
+[44] Mingjie Sun, Zhuang Liu, Anna Bair, and J Zico Kolter. A simple and
+effective pruning approach for large language models. arXiv preprint
+arXiv:2306.11695, 2023.
+[45] Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen Li,
+Carlos Guestrin, Percy Liang, and Tatsunori B. Hashimoto. Stanford
+alpaca: An instruction-following llama model. https://github.com/
+tatsu-lab/stanford_alpaca, 2023.
+[46] Qwen Team. Qwen1.5-moe: Matching 7b model performance with 1/3
+activated parameters", February 2024.
+[47] Volker Tresp. Mixtures of gaussian processes. In T. Leen, T. Diet-
+terich, and V. Tresp, editors, Advances in Neural Information Processing
+Systems, volume 13. MIT Press, 2000.
+[48] Hongyu Wang, Shuming Ma, Li Dong, Shaohan Huang, Huaijie Wang,
+Lingxiao Ma, Fan Yang, Ruiping Wang, Yi Wu, and Furu Wei. Bitnet:
+Scaling 1-bit transformers for large language models. arXiv preprint
+arXiv:2310.11453, 2023.
+[49] Xin Wang, Yu Zheng, Zhongwei Wan, and Mi Zhang.
+Svd-llm:
+Truncation-aware singular value decomposition for large language
+model compression. arXiv preprint arXiv:2403.07378, 2024.
+[50] Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond,
+Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, Rémi Louf,
+Morgan Funtowicz, Joe Davison, Sam Shleifer, Patrick von Platen,
+Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, Teven Le Scao, Syl-
+vain Gugger, Mariama Drame, Quentin Lhoest, and Alexander M. Rush.
+Transformers: State-of-the-art natural language processing. In Proceed-
+ings of the 2020 Conference on Empirical Methods in Natural Language
+Processing: System Demonstrations, pages 38–45, Online, October 2020.
+Association for Computational Linguistics.
+[51] Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth,
+and Song Han. Smoothquant: Accurate and efficient post-training
+quantization for large language models. In International Conference on
+Machine Learning, pages 38087–38099. PMLR, 2023.
+14
+
+HOBBIT: A Mixed Precision Expert Offloading System for Fast MoE Inference
+Conference’17, July 2017, Washington, DC, USA
+[52] Leyang Xue, Yao Fu, Zhan Lu, Luo Mai, and Mahesh Marina. Moe-
+infinity: Activation-aware expert offloading for efficient moe serving.
+arXiv preprint arXiv:2401.14361, 2024.
+[53] Zhenliang Xue, Yixin Song, Zeyu Mi, Le Chen, Yubin Xia, and Haibo
+Chen. Powerinfer-2: Fast large language model inference on a smart-
+phone. arXiv preprint arXiv:2406.06282, 2024.
+[54] Rongjie Yi, Liwei Guo, Shiyun Wei, Ao Zhou, Shangguang Wang, and
+Mengwei Xu. Edgemoe: Fast on-device inference of moe-based large
+language models. arXiv preprint arXiv:2308.14352, 2023.
+[55] Zhihang Yuan, Yuzhang Shang, Yue Song, Qiang Wu, Yan Yan,
+and Guangyu Sun. Asvd: Activation-aware singular value decom-
+position for compressing large language models.
+arXiv preprint
+arXiv:2312.05821, 2023.
+[56] Peiyuan Zhang, Guangtao Zeng, Tianduo Wang, and Wei Lu. Tinyl-
+lama: An open-source small language model, 2024.
+[57] Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang, Xiaolei Wang,
+Yupeng Hou, Yingqian Min, Beichen Zhang, Junjie Zhang, Zican
+Dong, et al.
+A survey of large language models.
+arXiv preprint
+arXiv:2303.18223, 2023.
+[58] Shuzhang Zhong, Ling Liang, Yuan Wang, Runsheng Wang, Ru Huang,
+and Meng Li. AdapMoE: Adaptive Sensitivity-based Expert Gating
+and Management for Efficient MoE Inference. arXiv e-prints, page
+arXiv:2408.10284, August 2024.
+15
+Yifei Pu1, Jing Wang1, Pheng-Ann Heng2, Chao Li1„ Minyi Guo1 1Department of Computer Science and Engineering, Shanghai Jia

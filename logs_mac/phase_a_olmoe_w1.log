@@ -1,0 +1,175 @@
+== [01:31] E1 (T0 predictors, export)
+== W1-cwq: n=500 decode tokens=2110 schema coverage=0.60
+   diff OURS_ADMIT-BASE_ADMIT@16     +0.0271  95% CI [+0.0217, +0.0324]
+   diff OURS_ADMIT-BASE_ADMIT@32     +0.0104  95% CI [+0.0079, +0.0128]
+   diff OURS_ADMIT-BASE_ADMIT@8      +0.0211  95% CI [+0.0147, +0.0276]
+   diff RPP_R-RPP@16                 +0.0266  95% CI [+0.0223, +0.0307]
+   diff RPP_R-RPP@32                 +0.0070  95% CI [+0.0050, +0.0090]
+   diff RPP_R-RPP@8                  +0.0254  95% CI [+0.0209, +0.0300]
+== W1-webqsp: n=500 decode tokens=3073 schema coverage=0.77
+   diff OURS_ADMIT-BASE_ADMIT@16     +0.0474  95% CI [+0.0421, +0.0525]
+   diff OURS_ADMIT-BASE_ADMIT@32     +0.0168  95% CI [+0.0145, +0.0193]
+   diff OURS_ADMIT-BASE_ADMIT@8      +0.0341  95% CI [+0.0283, +0.0399]
+   diff RPP_R-RPP@16                 +0.0432  95% CI [+0.0393, +0.0473]
+   diff RPP_R-RPP@32                 +0.0120  95% CI [+0.0103, +0.0139]
+   diff RPP_R-RPP@8                  +0.0389  95% CI [+0.0344, +0.0433]
+== [01:31] E1 by phase (T1)
+OLMoE-1B-7B-0924-Instruct: decode table over 640 token ids (build split 1600)
+
+== W1-cwq: n=413 (requests with >=2 decode steps), g0 starts a candidate in 81%
+   predictor     R@8    R@16   R@32    R@16 matched / unmatched
+   ORACLE        0.674  0.935  0.998   0.933 / 0.944
+   OURS_ADMIT    0.532  0.772  0.935   0.786 / 0.715
+   RPP_R         0.532  0.770  0.933   0.781 / 0.724
+   RPP           0.503  0.739  0.924   0.74 / 0.736
+   BASE_ADMIT    0.501  0.738  0.919   0.738 / 0.736
+   GLOBAL        0.490  0.731  0.918   0.731 / 0.73
+   CANDDEC       0.490  0.721  0.899   0.745 / 0.623
+   CANDFIRST     0.482  0.708  0.873   0.729 / 0.623
+   FIRSTTOK      0.454  0.659  0.821   0.659 / 0.658
+   PREFILL       0.354  0.600  0.867   0.609 / 0.563
+   diff CANDFIRST-FIRSTTOK@16      +5.0 pt  95% CI [+3.5, +6.5]
+   diff CANDFIRST-OURS_ADMIT@16    -6.4 pt  95% CI [-7.4, -5.2]
+   diff CANDFIRST-CANDDEC@16       -1.3 pt  95% CI [-2.0, -0.6]
+   diff FIRSTTOK-GLOBAL@16         -7.2 pt  95% CI [-8.2, -6.1]
+   diff CANDFIRST-GLOBAL@16        -2.2 pt  95% CI [-3.5, -0.9]
+
+== W1-webqsp: n=436 (requests with >=2 decode steps), g0 starts a candidate in 81%
+   predictor     R@8    R@16   R@32    R@16 matched / unmatched
+   ORACLE        0.660  0.921  0.994   0.929 / 0.89
+   OURS_ADMIT    0.532  0.766  0.930   0.791 / 0.657
+   RPP_R         0.529  0.764  0.928   0.788 / 0.661
+   CANDDEC       0.497  0.721  0.895   0.75 / 0.594
+   RPP           0.489  0.720  0.913   0.734 / 0.658
+   BASE_ADMIT    0.488  0.716  0.908   0.729 / 0.66
+   CANDFIRST     0.499  0.714  0.876   0.741 / 0.594
+   GLOBAL        0.470  0.704  0.909   0.715 / 0.655
+   FIRSTTOK      0.446  0.649  0.827   0.656 / 0.618
+   PREFILL       0.373  0.624  0.879   0.632 / 0.589
+   diff CANDFIRST-FIRSTTOK@16      +6.5 pt  95% CI [+5.1, +7.8]
+   diff CANDFIRST-OURS_ADMIT@16    -5.2 pt  95% CI [-6.1, -4.3]
+   diff CANDFIRST-CANDDEC@16       -0.7 pt  95% CI [-1.2, -0.2]
+   diff FIRSTTOK-GLOBAL@16         -5.5 pt  95% CI [-6.4, -4.6]
+   diff CANDFIRST-GLOBAL@16        +1.0 pt  95% CI [-0.3, +2.3]
+== [01:31] decode regrouping after prefill
+CANDDEC: candidate tokens covered by the decode table 52%; CANDFIRST: first generated token starts a candidate entity in 76% of requests
+B=4: random 5.90 expert loads/layer/token; oracle (actual decode) 4.94 (-16%, 100% of oracle gain); RPP_R 5.59 (-5%, 32% of oracle gain); OURS_ADMIT 5.56 (-6%, 36% of oracle gain); BASE_ADMIT 5.76 (-2%, 15% of oracle gain); CANDDEC (new) 5.57 (-6%, 34% of oracle gain); FIRSTTOK (no retrieval) 5.23 (-11%, 69% of oracle gain); CANDFIRST (new) 5.22 (-12%, 71% of oracle gain); ANSWERTOK (not deployable) 5.10 (-13%, 83% of oracle gain)
+B=8: random 4.76 expert loads/layer/token; oracle (actual decode) 3.90 (-18%, 100% of oracle gain); RPP_R 4.44 (-7%, 37% of oracle gain); OURS_ADMIT 4.38 (-8%, 44% of oracle gain); BASE_ADMIT 4.57 (-4%, 23% of oracle gain); CANDDEC (new) 4.44 (-7%, 38% of oracle gain); FIRSTTOK (no retrieval) 4.19 (-12%, 67% of oracle gain); CANDFIRST (new) 4.21 (-12%, 65% of oracle gain); ANSWERTOK (not deployable) 4.07 (-15%, 80% of oracle gain)
+B=16: random 3.63 expert loads/layer/token; oracle (actual decode) 3.07 (-15%, 100% of oracle gain); RPP_R 3.38 (-7%, 44% of oracle gain); OURS_ADMIT 3.38 (-7%, 44% of oracle gain); BASE_ADMIT 3.54 (-2%, 16% of oracle gain); CANDDEC (new) 3.38 (-7%, 45% of oracle gain); FIRSTTOK (no retrieval) 3.24 (-11%, 70% of oracle gain); CANDFIRST (new) 3.27 (-10%, 65% of oracle gain); ANSWERTOK (not deployable) 3.11 (-14%, 93% of oracle gain)
+B=32: random 2.64 expert loads/layer/token; oracle (actual decode) 2.34 (-11%, 100% of oracle gain); RPP_R 2.58 (-3%, 23% of oracle gain); OURS_ADMIT 2.54 (-4%, 34% of oracle gain); BASE_ADMIT 2.59 (-2%, 18% of oracle gain); CANDDEC (new) 2.56 (-3%, 27% of oracle gain); FIRSTTOK (no retrieval) 2.48 (-6%, 54% of oracle gain); CANDFIRST (new) 2.51 (-5%, 44% of oracle gain); ANSWERTOK (not deployable) 2.39 (-10%, 85% of oracle gain)
+== [01:32] time-stepped simulation (S1)
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_cwq_M0_cap8: 500 requests, L=16, cache C=256 experts (25%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1973 ms  TPOT 111.78 ms  decode stall   384.1 ms/req  first-8 stall  338.5 ms  loaded  15.8 GB/req  wasted 2%
+  moeinf/none/none             TTFT    1969 ms  TPOT  55.55 ms  decode stall   223.0 ms/req  first-8 stall  190.0 ms  loaded  14.3 GB/req  wasted 2%
+  sw-moeinf/la1/none           TTFT    1752 ms  TPOT  65.09 ms  decode stall   263.7 ms/req  first-8 stall  224.1 ms  loaded  12.9 GB/req  wasted 6%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1736 ms  TPOT  63.19 ms  decode stall   256.8 ms/req  first-8 stall  217.4 ms  loaded  13.4 GB/req  wasted 9%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1736 ms  TPOT  60.38 ms  decode stall   253.8 ms/req  first-8 stall  214.3 ms  loaded  13.4 GB/req  wasted 9%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1735 ms  TPOT  57.22 ms  decode stall   240.1 ms/req  first-8 stall  200.9 ms  loaded  13.4 GB/req  wasted 9%
+  sw-hyb/la1/T0:RPP_R          TTFT    1735 ms  TPOT  56.71 ms  decode stall   240.2 ms/req  first-8 stall  201.0 ms  loaded  13.4 GB/req  wasted 9%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1752 ms  TPOT  65.84 ms  decode stall   268.4 ms/req  first-8 stall  227.3 ms  loaded  13.0 GB/req  wasted 6%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1756 ms  TPOT  65.03 ms  decode stall   262.3 ms/req  first-8 stall  222.3 ms  loaded  12.9 GB/req  wasted 6%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1735 ms  TPOT  59.92 ms  decode stall   249.9 ms/req  first-8 stall  209.9 ms  loaded  13.6 GB/req  wasted 9%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1736 ms  TPOT  63.18 ms  decode stall   265.1 ms/req  first-8 stall  224.0 ms  loaded  13.6 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1735 ms  TPOT  30.66 ms  decode stall   169.8 ms/req  first-8 stall  133.0 ms  loaded  13.0 GB/req  wasted 8%
+  sw-hyb/la1/T1:ORACLE         TTFT    1752 ms  TPOT  58.98 ms  decode stall   235.1 ms/req  first-8 stall  198.3 ms  loaded  12.7 GB/req  wasted 6%
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_cwq_M0_cap8: 500 requests, L=16, cache C=512 experts (50%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1857 ms  TPOT  72.36 ms  decode stall   224.0 ms/req  first-8 stall  212.3 ms  loaded  13.3 GB/req  wasted 2%
+  moeinf/none/none             TTFT    1717 ms  TPOT  16.66 ms  decode stall    57.0 ms/req  first-8 stall   47.6 ms  loaded  10.5 GB/req  wasted 3%
+  sw-moeinf/la1/none           TTFT    1368 ms  TPOT  17.59 ms  decode stall    62.5 ms/req  first-8 stall   51.6 ms  loaded   7.6 GB/req  wasted 6%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1342 ms  TPOT  17.75 ms  decode stall    62.7 ms/req  first-8 stall   51.7 ms  loaded   7.8 GB/req  wasted 8%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1349 ms  TPOT  16.79 ms  decode stall    60.6 ms/req  first-8 stall   49.6 ms  loaded   8.0 GB/req  wasted 8%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1347 ms  TPOT  14.53 ms  decode stall    50.6 ms/req  first-8 stall   40.1 ms  loaded   8.2 GB/req  wasted 7%
+  sw-hyb/la1/T0:RPP_R          TTFT    1348 ms  TPOT  14.91 ms  decode stall    53.2 ms/req  first-8 stall   42.5 ms  loaded   8.2 GB/req  wasted 7%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1370 ms  TPOT  18.68 ms  decode stall    67.0 ms/req  first-8 stall   55.7 ms  loaded   7.7 GB/req  wasted 6%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1372 ms  TPOT  18.38 ms  decode stall    64.5 ms/req  first-8 stall   53.4 ms  loaded   7.7 GB/req  wasted 6%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1347 ms  TPOT  15.67 ms  decode stall    55.0 ms/req  first-8 stall   43.9 ms  loaded   8.3 GB/req  wasted 8%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1349 ms  TPOT  17.95 ms  decode stall    65.5 ms/req  first-8 stall   54.1 ms  loaded   8.1 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1362 ms  TPOT   5.70 ms  decode stall    10.1 ms/req  first-8 stall    2.8 ms  loaded   7.5 GB/req  wasted 6%
+  sw-hyb/la1/T1:ORACLE         TTFT    1368 ms  TPOT  14.58 ms  decode stall    46.0 ms/req  first-8 stall   38.4 ms  loaded   7.5 GB/req  wasted 5%
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_cwq_M0_cap8: 500 requests, L=16, cache C=768 experts (75%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1755 ms  TPOT  39.32 ms  decode stall   116.6 ms/req  first-8 stall  111.6 ms  loaded  11.4 GB/req  wasted 3%
+  moeinf/none/none             TTFT    1331 ms  TPOT   7.47 ms  decode stall    10.8 ms/req  first-8 stall    8.8 ms  loaded   6.7 GB/req  wasted 4%
+  sw-moeinf/la1/none           TTFT     996 ms  TPOT   7.56 ms  decode stall    11.1 ms/req  first-8 stall    9.1 ms  loaded   3.7 GB/req  wasted 7%
+  sw-hyb/la1/T0:GLOBAL         TTFT     989 ms  TPOT   6.95 ms  decode stall     9.0 ms/req  first-8 stall    7.1 ms  loaded   3.9 GB/req  wasted 13%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT     982 ms  TPOT   7.26 ms  decode stall    10.8 ms/req  first-8 stall    8.8 ms  loaded   4.0 GB/req  wasted 11%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT     983 ms  TPOT   6.65 ms  decode stall     7.9 ms/req  first-8 stall    6.2 ms  loaded   4.2 GB/req  wasted 10%
+  sw-hyb/la1/T0:RPP_R          TTFT     989 ms  TPOT   6.71 ms  decode stall     8.3 ms/req  first-8 stall    6.4 ms  loaded   4.3 GB/req  wasted 11%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT     995 ms  TPOT   7.65 ms  decode stall    11.5 ms/req  first-8 stall    9.4 ms  loaded   3.8 GB/req  wasted 9%
+  sw-hyb/la1/T1:CANDFIRST      TTFT     997 ms  TPOT   7.63 ms  decode stall    11.3 ms/req  first-8 stall    9.1 ms  loaded   3.8 GB/req  wasted 10%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT     983 ms  TPOT   6.84 ms  decode stall     8.9 ms/req  first-8 stall    6.8 ms  loaded   4.4 GB/req  wasted 12%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT     982 ms  TPOT   7.45 ms  decode stall    11.4 ms/req  first-8 stall    9.4 ms  loaded   4.1 GB/req  wasted 12%
+  sw-hyb/la1/T0:ORACLE         TTFT     994 ms  TPOT   5.26 ms  decode stall     0.4 ms/req  first-8 stall    0.1 ms  loaded   3.7 GB/req  wasted 8%
+  sw-hyb/la1/T1:ORACLE         TTFT     996 ms  TPOT   6.53 ms  decode stall     5.3 ms/req  first-8 stall    4.7 ms  loaded   3.7 GB/req  wasted 7%
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_webqsp_M0_cap8: 500 requests, L=16, cache C=256 experts (25%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1955 ms  TPOT 109.40 ms  decode stall   549.6 ms/req  first-8 stall  376.4 ms  loaded  17.1 GB/req  wasted 1%
+  moeinf/none/none             TTFT    1950 ms  TPOT  59.02 ms  decode stall   349.2 ms/req  first-8 stall  227.0 ms  loaded  15.3 GB/req  wasted 1%
+  sw-moeinf/la1/none           TTFT    1738 ms  TPOT  68.98 ms  decode stall   414.0 ms/req  first-8 stall  267.2 ms  loaded  14.2 GB/req  wasted 7%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1719 ms  TPOT  66.07 ms  decode stall   405.2 ms/req  first-8 stall  259.1 ms  loaded  14.6 GB/req  wasted 10%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1720 ms  TPOT  62.50 ms  decode stall   398.0 ms/req  first-8 stall  251.3 ms  loaded  14.6 GB/req  wasted 10%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1717 ms  TPOT  55.99 ms  decode stall   375.9 ms/req  first-8 stall  231.0 ms  loaded  14.6 GB/req  wasted 9%
+  sw-hyb/la1/T0:RPP_R          TTFT    1717 ms  TPOT  55.85 ms  decode stall   376.8 ms/req  first-8 stall  231.8 ms  loaded  14.6 GB/req  wasted 9%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1735 ms  TPOT  69.44 ms  decode stall   420.7 ms/req  first-8 stall  269.7 ms  loaded  14.3 GB/req  wasted 7%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1739 ms  TPOT  67.78 ms  decode stall   412.6 ms/req  first-8 stall  263.2 ms  loaded  14.2 GB/req  wasted 7%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1717 ms  TPOT  58.56 ms  decode stall   390.9 ms/req  first-8 stall  241.5 ms  loaded  14.9 GB/req  wasted 9%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1720 ms  TPOT  65.68 ms  decode stall   413.0 ms/req  first-8 stall  262.0 ms  loaded  14.8 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1717 ms  TPOT  32.78 ms  decode stall   299.0 ms/req  first-8 stall  163.3 ms  loaded  14.2 GB/req  wasted 9%
+  sw-hyb/la1/T1:ORACLE         TTFT    1738 ms  TPOT  62.10 ms  decode stall   370.0 ms/req  first-8 stall  234.3 ms  loaded  13.9 GB/req  wasted 7%
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_webqsp_M0_cap8: 500 requests, L=16, cache C=512 experts (50%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1829 ms  TPOT  68.19 ms  decode stall   266.6 ms/req  first-8 stall  229.5 ms  loaded  13.4 GB/req  wasted 2%
+  moeinf/none/none             TTFT    1714 ms  TPOT  18.90 ms  decode stall    94.0 ms/req  first-8 stall   62.4 ms  loaded  10.8 GB/req  wasted 2%
+  sw-moeinf/la1/none           TTFT    1351 ms  TPOT  20.29 ms  decode stall   106.3 ms/req  first-8 stall   69.1 ms  loaded   7.9 GB/req  wasted 6%
+  sw-hyb/la1/T0:GLOBAL         TTFT    1326 ms  TPOT  18.70 ms  decode stall   102.6 ms/req  first-8 stall   65.9 ms  loaded   8.2 GB/req  wasted 8%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT    1331 ms  TPOT  18.05 ms  decode stall   102.4 ms/req  first-8 stall   65.1 ms  loaded   8.3 GB/req  wasted 8%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT    1330 ms  TPOT  14.60 ms  decode stall    89.6 ms/req  first-8 stall   53.6 ms  loaded   8.5 GB/req  wasted 7%
+  sw-hyb/la1/T0:RPP_R          TTFT    1332 ms  TPOT  14.95 ms  decode stall    92.0 ms/req  first-8 stall   55.8 ms  loaded   8.6 GB/req  wasted 8%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT    1352 ms  TPOT  21.31 ms  decode stall   112.2 ms/req  first-8 stall   74.5 ms  loaded   8.0 GB/req  wasted 7%
+  sw-hyb/la1/T1:CANDFIRST      TTFT    1354 ms  TPOT  20.91 ms  decode stall   111.8 ms/req  first-8 stall   73.1 ms  loaded   8.0 GB/req  wasted 7%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT    1330 ms  TPOT  15.69 ms  decode stall    96.9 ms/req  first-8 stall   58.3 ms  loaded   8.7 GB/req  wasted 8%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT    1331 ms  TPOT  19.13 ms  decode stall   107.0 ms/req  first-8 stall   69.4 ms  loaded   8.5 GB/req  wasted 9%
+  sw-hyb/la1/T0:ORACLE         TTFT    1344 ms  TPOT   6.85 ms  decode stall    39.6 ms/req  first-8 stall   13.3 ms  loaded   7.8 GB/req  wasted 6%
+  sw-hyb/la1/T1:ORACLE         TTFT    1351 ms  TPOT  17.12 ms  decode stall    81.5 ms/req  first-8 stall   54.0 ms  loaded   7.7 GB/req  wasted 6%
+outputs/moe_edge/traces/OLMoE-1B-7B-0924-Instruct_webqsp_M0_cap8: 500 requests, L=16, cache C=768 experts (75%), expert 12.6 MB, load 1.40 ms, decode layer 0.33 ms
+  lru/none/none                TTFT    1705 ms  TPOT  36.87 ms  decode stall   135.5 ms/req  first-8 stall  118.3 ms  loaded  11.1 GB/req  wasted 2%
+  moeinf/none/none             TTFT    1304 ms  TPOT   7.95 ms  decode stall    19.1 ms/req  first-8 stall   13.4 ms  loaded   6.5 GB/req  wasted 3%
+  sw-moeinf/la1/none           TTFT     980 ms  TPOT   7.96 ms  decode stall    19.6 ms/req  first-8 stall   13.7 ms  loaded   3.6 GB/req  wasted 6%
+  sw-hyb/la1/T0:GLOBAL         TTFT     974 ms  TPOT   7.21 ms  decode stall    16.9 ms/req  first-8 stall   11.1 ms  loaded   3.9 GB/req  wasted 12%
+  sw-hyb/la1/T0:BASE_ADMIT     TTFT     967 ms  TPOT   7.40 ms  decode stall    18.7 ms/req  first-8 stall   12.4 ms  loaded   4.0 GB/req  wasted 10%
+  sw-hyb/la1/T0:OURS_ADMIT     TTFT     968 ms  TPOT   6.74 ms  decode stall    15.4 ms/req  first-8 stall    9.7 ms  loaded   4.3 GB/req  wasted 9%
+  sw-hyb/la1/T0:RPP_R          TTFT     976 ms  TPOT   6.77 ms  decode stall    16.0 ms/req  first-8 stall   10.0 ms  loaded   4.4 GB/req  wasted 10%
+  sw-hyb/la1/T1:FIRSTTOK       TTFT     980 ms  TPOT   8.04 ms  decode stall    20.4 ms/req  first-8 stall   14.1 ms  loaded   3.7 GB/req  wasted 8%
+  sw-hyb/la1/T1:CANDFIRST      TTFT     983 ms  TPOT   8.04 ms  decode stall    21.2 ms/req  first-8 stall   14.2 ms  loaded   3.8 GB/req  wasted 9%
+  sw-hyb/la1/T01:OURS_ADMIT:CANDFIRST TTFT     968 ms  TPOT   7.01 ms  decode stall    17.8 ms/req  first-8 stall   11.0 ms  loaded   4.4 GB/req  wasted 11%
+  sw-hyb/la1/T01:BASE_ADMIT:FIRSTTOK TTFT     967 ms  TPOT   7.53 ms  decode stall    19.2 ms/req  first-8 stall   12.8 ms  loaded   4.2 GB/req  wasted 12%
+  sw-hyb/la1/T0:ORACLE         TTFT     977 ms  TPOT   5.26 ms  decode stall     0.5 ms/req  first-8 stall    0.2 ms  loaded   3.6 GB/req  wasted 6%
+  sw-hyb/la1/T1:ORACLE         TTFT     980 ms  TPOT   6.63 ms  decode stall     8.6 ms/req  first-8 stall    7.8 ms  loaded   3.6 GB/req  wasted 6%
+Traceback (most recent call last):
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 342, in <module>
+    main()
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 308, in main
+    z = np.load(args.preds)
+        ^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 454, in load
+    fid = stack.enter_context(open(os.fspath(file), "rb"))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'outputs/moe_edge/e1/OLMoE-1B-7B-0924-Instruct_W2-cwq_pred.npz'
+Traceback (most recent call last):
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 342, in <module>
+    main()
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 308, in main
+    z = np.load(args.preds)
+        ^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 454, in load
+    fid = stack.enter_context(open(os.fspath(file), "rb"))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'outputs/moe_edge/e1/OLMoE-1B-7B-0924-Instruct_W2-cwq_pred.npz'
+Traceback (most recent call last):
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 342, in <module>
+    main()
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/moe_edge/tsim.py", line 308, in main
+    z = np.load(args.preds)
+        ^^^^^^^^^^^^^^^^^^^
+  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/numpy/lib/_npyio_impl.py", line 454, in load
+    fid = stack.enter_context(open(os.fspath(file), "rb"))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'outputs/moe_edge/e1/OLMoE-1B-7B-0924-Instruct_W2-cwq_pred.npz'
+== [01:36] PHASE A DONE OLMoE-1B-7B-0924-Instruct

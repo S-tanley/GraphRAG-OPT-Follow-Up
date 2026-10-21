@@ -1,0 +1,12 @@
+# Mac (Apple silicon) environment for the edge MoE experiments; kept separate from the cluster
+# project (pyproject.toml pins transformers 5.2.0, while mlx-lm 0.32.2 needs >= 5.7).
+#   uv venv .venv-mac --python 3.12 && uv pip install --python .venv-mac -r experiments/moe_edge/requirements-mac.txt
+mlx==0.32.4
+mlx-lm==0.32.2
+torch==2.10.0
+datasets>=2.14
+numpy
+safetensors
+huggingface_hub
+networkx
+tqdm

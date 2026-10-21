@@ -1,0 +1,43 @@
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_cwq_M0_cap8: 500 requests, L=26, cache C=416 experts (25%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    3498 ms  TPOT  93.44 ms  e2e    4095 ms  decode stall   543.8 ms/req  first-8 stall  364.3 ms  loaded  33.4 GB/req  wasted 7%
+  hyb/none/T0:KNN_T            TTFT    3454 ms  TPOT  93.41 ms  e2e    4051 ms  decode stall   543.9 ms/req  first-8 stall  364.4 ms  loaded  33.0 GB/req  wasted 7%
+  hyb/none/T0:OURS_ADMIT       TTFT    3489 ms  TPOT  93.37 ms  e2e    4081 ms  decode stall   539.3 ms/req  first-8 stall  359.9 ms  loaded  33.3 GB/req  wasted 7%
+  hyb/none/T0:KNN_R            TTFT    3463 ms  TPOT  98.17 ms  e2e    4069 ms  decode stall   552.8 ms/req  first-8 stall  373.1 ms  loaded  33.5 GB/req  wasted 8%
+  hyb/none/T0:RPP_R            TTFT    3488 ms  TPOT  94.38 ms  e2e    4084 ms  decode stall   543.0 ms/req  first-8 stall  363.6 ms  loaded  33.1 GB/req  wasted 7%
+  hyb/none/T0:ORACLE           TTFT    3365 ms  TPOT  38.42 ms  e2e    3768 ms  decode stall   349.9 ms/req  first-8 stall  190.6 ms  loaded  30.4 GB/req  wasted 4%
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_cwq_M0_cap8: 500 requests, L=26, cache C=832 experts (50%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    3138 ms  TPOT  38.74 ms  e2e    3384 ms  decode stall   192.1 ms/req  first-8 stall  127.5 ms  loaded  27.5 GB/req  wasted 10%
+  hyb/none/T0:KNN_T            TTFT    3092 ms  TPOT  38.39 ms  e2e    3338 ms  decode stall   192.4 ms/req  first-8 stall  127.9 ms  loaded  27.2 GB/req  wasted 10%
+  hyb/none/T0:OURS_ADMIT       TTFT    3141 ms  TPOT  37.82 ms  e2e    3381 ms  decode stall   186.3 ms/req  first-8 stall  123.5 ms  loaded  27.3 GB/req  wasted 9%
+  hyb/none/T0:KNN_R            TTFT    3106 ms  TPOT  41.26 ms  e2e    3356 ms  decode stall   196.5 ms/req  first-8 stall  132.9 ms  loaded  27.7 GB/req  wasted 11%
+  hyb/none/T0:RPP_R            TTFT    3132 ms  TPOT  39.33 ms  e2e    3378 ms  decode stall   192.2 ms/req  first-8 stall  129.1 ms  loaded  27.0 GB/req  wasted 9%
+  hyb/none/T0:ORACLE           TTFT    3016 ms  TPOT  13.12 ms  e2e    3125 ms  decode stall    55.6 ms/req  first-8 stall   15.1 ms  loaded  23.6 GB/req  wasted 4%
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_cwq_M0_cap8: 500 requests, L=26, cache C=1248 experts (75%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    2435 ms  TPOT  19.74 ms  e2e    2547 ms  decode stall    58.2 ms/req  first-8 stall   39.4 ms  loaded  19.4 GB/req  wasted 11%
+  hyb/none/T0:KNN_T            TTFT    2415 ms  TPOT  19.18 ms  e2e    2524 ms  decode stall    56.2 ms/req  first-8 stall   38.1 ms  loaded  19.3 GB/req  wasted 11%
+  hyb/none/T0:OURS_ADMIT       TTFT    2454 ms  TPOT  18.70 ms  e2e    2561 ms  decode stall    53.2 ms/req  first-8 stall   36.9 ms  loaded  19.3 GB/req  wasted 10%
+  hyb/none/T0:KNN_R            TTFT    2419 ms  TPOT  20.32 ms  e2e    2531 ms  decode stall    58.9 ms/req  first-8 stall   42.1 ms  loaded  19.4 GB/req  wasted 10%
+  hyb/none/T0:RPP_R            TTFT    2439 ms  TPOT  19.05 ms  e2e    2548 ms  decode stall    55.1 ms/req  first-8 stall   38.0 ms  loaded  19.0 GB/req  wasted 10%
+  hyb/none/T0:ORACLE           TTFT    2393 ms  TPOT  10.56 ms  e2e    2448 ms  decode stall     1.1 ms/req  first-8 stall    0.1 ms  loaded  16.6 GB/req  wasted 4%
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_webqsp_M0_cap8: 500 requests, L=26, cache C=416 experts (25%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    3391 ms  TPOT  90.81 ms  e2e    4166 ms  decode stall   701.9 ms/req  first-8 stall  403.1 ms  loaded  33.9 GB/req  wasted 6%
+  hyb/none/T0:KNN_T            TTFT    3348 ms  TPOT  90.81 ms  e2e    4124 ms  decode stall   702.4 ms/req  first-8 stall  403.4 ms  loaded  33.5 GB/req  wasted 6%
+  hyb/none/T0:OURS_ADMIT       TTFT    3361 ms  TPOT  86.49 ms  e2e    4123 ms  decode stall   689.2 ms/req  first-8 stall  391.7 ms  loaded  33.6 GB/req  wasted 6%
+  hyb/none/T0:KNN_R            TTFT    3342 ms  TPOT  90.80 ms  e2e    4120 ms  decode stall   705.1 ms/req  first-8 stall  407.1 ms  loaded  33.9 GB/req  wasted 6%
+  hyb/none/T0:RPP_R            TTFT    3362 ms  TPOT  88.33 ms  e2e    4132 ms  decode stall   697.4 ms/req  first-8 stall  399.6 ms  loaded  33.5 GB/req  wasted 6%
+  hyb/none/T0:ORACLE           TTFT    3287 ms  TPOT  42.24 ms  e2e    3847 ms  decode stall   486.4 ms/req  first-8 stall  223.6 ms  loaded  31.2 GB/req  wasted 4%
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_webqsp_M0_cap8: 500 requests, L=26, cache C=832 experts (50%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    2987 ms  TPOT  33.34 ms  e2e    3275 ms  decode stall   215.0 ms/req  first-8 stall  119.2 ms  loaded  26.3 GB/req  wasted 9%
+  hyb/none/T0:KNN_T            TTFT    2940 ms  TPOT  33.15 ms  e2e    3228 ms  decode stall   214.7 ms/req  first-8 stall  119.6 ms  loaded  26.1 GB/req  wasted 10%
+  hyb/none/T0:OURS_ADMIT       TTFT    2985 ms  TPOT  31.77 ms  e2e    3266 ms  decode stall   207.8 ms/req  first-8 stall  115.5 ms  loaded  26.2 GB/req  wasted 9%
+  hyb/none/T0:KNN_R            TTFT    2958 ms  TPOT  35.12 ms  e2e    3251 ms  decode stall   220.5 ms/req  first-8 stall  126.6 ms  loaded  26.6 GB/req  wasted 10%
+  hyb/none/T0:RPP_R            TTFT    2981 ms  TPOT  32.80 ms  e2e    3267 ms  decode stall   212.5 ms/req  first-8 stall  119.8 ms  loaded  26.0 GB/req  wasted 9%
+  hyb/none/T0:ORACLE           TTFT    2922 ms  TPOT  13.27 ms  e2e    3071 ms  decode stall    76.3 ms/req  first-8 stall   17.4 ms  loaded  23.1 GB/req  wasted 4%
+outputs/moe_edge/traces/DeepSeek-V2-Lite-Chat_webqsp_M0_cap8: 500 requests, L=26, cache C=1248 experts (75%), expert 17.3 MB, load 1.92 ms, decode layer 0.40 ms
+  hyb/none/T0:BASE_ADMIT       TTFT    2313 ms  TPOT  16.27 ms  e2e    2437 ms  decode stall    51.2 ms/req  first-8 stall   28.5 ms  loaded  18.2 GB/req  wasted 10%
+  hyb/none/T0:KNN_T            TTFT    2295 ms  TPOT  15.68 ms  e2e    2414 ms  decode stall    46.4 ms/req  first-8 stall   25.5 ms  loaded  18.1 GB/req  wasted 10%
+  hyb/none/T0:OURS_ADMIT       TTFT    2340 ms  TPOT  15.24 ms  e2e    2455 ms  decode stall    42.2 ms/req  first-8 stall   23.8 ms  loaded  18.2 GB/req  wasted 10%
+  hyb/none/T0:KNN_R            TTFT    2304 ms  TPOT  16.79 ms  e2e    2426 ms  decode stall    48.6 ms/req  first-8 stall   29.3 ms  loaded  18.1 GB/req  wasted 10%
+  hyb/none/T0:RPP_R            TTFT    2323 ms  TPOT  15.62 ms  e2e    2441 ms  decode stall    45.0 ms/req  first-8 stall   25.2 ms  loaded  18.1 GB/req  wasted 10%
+  hyb/none/T0:ORACLE           TTFT    2298 ms  TPOT  10.61 ms  e2e    2374 ms  decode stall     2.6 ms/req  first-8 stall    0.5 ms  loaded  15.7 GB/req  wasted 3%
+DSLITE EXTRA DONE

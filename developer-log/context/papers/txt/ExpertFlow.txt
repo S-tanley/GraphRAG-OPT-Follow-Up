@@ -1,0 +1,1276 @@
+ExpertFlow: Efficient Mixture-of-Experts Inference via Predictive
+Expert Caching and Token Scheduling
+Xin He1*, Shunkang Zhang2, Kaijie Tang3, Shaohuai Shi3, Yuxin Wang4, Zihao Zeng5,
+Zhenheng Tang2, Xiaowen Chu6, Haiyan Yin1, Ivor W. Tsang1,5, Yew Soon Ong1,5∗
+1CFAR, Agency for Science, Technology and Research (A*STAR), Singapore
+2The Hong Kong University of Science and Technology, Hong Kong
+3Harbin Institute of Technology, Shenzhen, China
+4Hong Kong Baptist University, Hong Kong
+5Nanyang Technological University, Singapore
+6The Hong Kong University of Science and Technology (Guangzhou), China
+Abstract
+Sparse Mixture-of-Experts (MoE) models can outperform dense
+large language models at similar computation by activating only
+a small set of experts per token. However, stacking many expert
+modules introduces substantial parameter memory, which makes
+MoE models difficult to deploy in memory-constrained environ-
+ments such as single-GPU devices. Offloading alleviates this issue
+by storing inactive experts in CPU memory and loading them on
+demand, but existing methods remain limited: static caches dis-
+regard input-dependent routing, and methods that train separate
+models to predict expert usage ahead of time are often inaccurate
+or require significant training cost. We propose ExpertFlow, a
+lightweight MoE inference system that addresses this routing de-
+pendency through three coordinated components: 1) a transformer-
+based routing path predictor that estimates expert usage across all
+MoE layers in a single forward pass, 2) a token scheduler that groups
+tokens with similar predicted routes to improve expert utilization,
+and 3) a predictive expert cache that loads only the required experts
+while correcting mispredictions at runtime. Together, these compo-
+nents enable efficient expert loading and execution, reducing GPU
+memory usage by up to 93.72% and improving inference throughput
+by up to 10× over strong offloading baselines on a single GPU.
+CCS Concepts
+• Computer systems organization →Heterogeneous (hybrid)
+systems; • Computing methodologies →Natural language
+processing; Neural networks; Parallel computing methodologies.
+Keywords
+Large Language Model (LLM), Mixture-of-Experts (MoE), Hybrid
+System
+ACM Reference Format:
+Xin He1* , Shunkang Zhang2, Kaijie Tang3, Shaohuai Shi3, Yuxin Wang4, Zi-
+hao Zeng5, Zhenheng Tang2, Xiaowen Chu6, Haiyan Yin1, Ivor W. Tsang1,5,
+Yew Soon Ong1,5* . 2026. ExpertFlow: Efficient Mixture-of-Experts Inference
+via Predictive Expert Caching and Token Scheduling. In 63rd ACM/IEEE De-
+sign Automation Conference (DAC ’26), July 26–29, 2026, Long Beach, CA, USA.
+ACM, New York, NY, USA, 7 pages. https://doi.org/10.1145/3770743.3804292
+∗Corresponding authors: {he_xin,ong_yew_soon}@a-star.edu.sg
+This work is licensed under a Creative Commons Attribution-NonCommercial-
+NoDerivatives 4.0 International License.
+DAC ’26, Long Beach, CA, USA
+© 2026 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-2254-7/2026/07
+https://doi.org/10.1145/3770743.3804292
+1
+Introduction
+Sparse MoE models [5, 8, 14, 25] scale parameter size efficiently by
+activating only a small subset of experts per input, reducing per-
+token computation while keeping accuracy comparable to dense
+LLMs [10, 21, 22]. This efficiency, however, increases memory us-
+age. For instance, Mixtral-8×7B [14] requires more than 96 GB of
+GPU memory, exceeding the 80 GB capacity of an NVIDIA A100
+GPU. Although 45.1B of its 46.7B parameters belong to expert mod-
+ules, only a small fraction is used per input, leading to substantial
+memory redundancy. This sparsity suggests that offloading inactive
+experts to CPU and loading only the needed ones can reduce GPU
+memory demand. Existing studies have investigated such offloading
+methods [6, 7, 12, 15, 27, 35], but remain limited by three challenges.
+Inefficient expert prediction. Early and accurate expert ac-
+tivation prediction underpins effective offloading, as it enables
+scheduling and prefetching before experts are required. Prior work
+takes two routes. Regression-based methods [6, 12] approximate
+router scores, but even small score errors can affect output quality,
+necessitating extensive fine-tuning to recover the original rout-
+ing. Classification-based methods predict selected experts directly.
+Heuristic variants based on token–expert statistics [14, 17, 34] are
+lightweight but fail to capture input-dependent routing behavior.
+Learning-based predictors (e.g., ProMoE [27]) improve accuracy,
+yet their layer-by-layer sequential design reveals expert usage only
+after the previous layer executes, restricting scheduling flexibility.
+Low expert utilization. In the decoding phase, the token distri-
+bution across experts can be highly imbalanced, and some experts
+may receive only a single token. Since expert kernels have near-
+constant cost when handling a small number of tokens [32], such
+sparse assignments lead to low compute efficiency.
+Ineffective expert caching. Expert caching is central to con-
+trolling GPU memory usage. The commonly used LRU policy [7]
+evicts experts purely by recency and overlooks routing patterns,
+leading to unstable cache hit rates under MoE’s dynamic activa-
+tions. SE-MoE [35] improves locality by caching all experts from
+two consecutive layers through a ring-buffer design, but this creates
+large memory overhead for models with many experts (e.g., Switch-
+128) and repeatedly loads inactive experts, resulting in unnecessary
+CPU–GPU transfers.
+To address these challenges under resource-constrained settings
+such as single-GPU inference, we propose ExpertFlow, a unified
+system for memory-efficient MoE execution. Fig. 1 shows an ex-
+ample where tokens from two batches activate different experts
+across layers, leading to fragmented execution and high memory
+usage when processed directly. ExpertFlow recasts this process as
+a predictive and coordinated pipeline through three components:
+①the Routing Path Predictor (RPP) predicts expert activations
+arXiv:2410.17954v2  [cs.AI]  2 Apr 2026
+
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+He et al.
+Token
+Scheduler
+ ③ Proactive Expert Management
+between CPU & GPU
+Non-expert Layer2
+Router
+Non-expert Layer1
+Router
+Routing Path
+Predictor
+Expert Cache
+Engine
+Active
+Experts
+GPU
+CPU
+Idle
+Experts
+Batch1 Batch2
+① Batch-level Routing
+Path Prediction
+L2
+e2
+e1
+e3 e4
+e2
+e1
+e3 e4
+L1
+L2
+e2
+e1
+e3 e4
+e2
+e1
+e3 e4
+L1
+④ Data
+Flow for
+New
+Batch 1
+② Rebatched
+tokens
+Original
+New
+Optimized Routing Path
+(reduced expert loads per batch)
+Routers &
+None-
+Expert Layers
+Heterogeneous Placement of MoE Modules
+Figure 1: Overview of ExpertFlow. Given two input batches, ➀
+Routing Path Predictor predicts expert activation across all
+layers for all tokens, ➁Token Scheduler uses the prediction
+to reorder tokens across batches to consolidate expert usage,
+➂Expert Cache Engine preloads only required experts into
+GPU from CPU, and ➃the MoE model executes with opti-
+mized token flow and heterogeneous expert placement.
+for all tokens and all layers in one forward pass, providing early
+global routing signals; ②the Token Scheduler (TS) reorganizes
+tokens based on predicted paths to consolidate expert usage and
+increase compute efficiency; ③the Expert Cache Engine (ECE)
+loads only the needed experts into GPU memory and reuses them
+across steps, with lightweight correction for mispredictions. Our
+contributions are summarized as follows:
+• We identify three core bottlenecks in MoE offloading: inefficient
+expert prediction, low expert utilization, and ineffective caching
+under dynamic routing.
+• We introduce ExpertFlow, a unified system that integrates predic-
+tive scheduling, routing-aware token rebatching, and adaptive
+caching with lightweight correction. ExpertFlow reduces GPU
+memory usage by up to 93.72% and improves throughput by up
+to 10× over strong offloading methods, enabling efficient MoE
+inference on constrained single-GPU settings.
+• Our RPP achieves up to 95% expert prediction accuracy with
+strong cross-domain generalization. The TS improves throughput
+by up to 16.19% via enhanced expert reuse. The ECE attains a
+cache hit ratio of 91.96%, outperforming LRU by up to 61.15%.
+2
+Related Work
+2.1
+Mixture-of-Experts (MoE)
+MoE models [13] improve scalability by activating only a subset of
+experts for each token through a softmax-based gating mechanism,
+where the gating score for experts is 𝐺(𝑥) = softmax(𝑥𝑊𝑔) and the
+model selects the top-𝑘experts with the highest scores. The MoE
+layer output is then computed as a weighted sum of the selected
+experts, 𝑦= Í
+𝑖∈TopK(𝐺(𝑥)) 𝐺𝑖(𝑥) 𝐸𝑖(𝑥). With advances in hardware
+and training methods, transformer-based MoE architectures have
+become widely used and show strong performance across many
+tasks [5, 8, 25, 29], where the gating function determines which
+experts each token activates and shapes the routing pattern that
+drives system efficiency.
+2.2
+Model Compression
+LLM inference faces substantial GPU memory constraints, prompt-
+ing prior research to explore a range of solutions. Distillation tech-
+niques [5, 35] reduce the number of experts by compressing the
+teacher network into a smaller student network. Model pruning
+methods have also been explored, such as pruning non-essential ex-
+perts during fine-tuning based on usage frequency [4] and merging
+similar experts followed by low-rank decomposition [16]. Post-
+training quantization [7, 9, 18, 19] further reduces memory con-
+sumption by converting pre-trained models to lower-precision ones
+(e.g., Int4), without requiring extensive retraining. The contribution
+of our proposed ExpertFlow is orthogonal to this direction, and
+ExpertFlow can be seamlessly integrated with these techniques to
+further reduce GPU memory cost during MoE inference.
+2.3
+Model Offloading
+Model offloading reduces GPU memory usage by moving model
+states or computations to cheaper storage or processing units. Early
+work such as ZeRO [23, 24] offloaded optimizer states, gradients,
+and weights to CPUs or SSDs during training, and later extensions
+applied similar ideas to inference [3, 26, 28]. FlexGen [26] uses a zig-
+zag block schedule to offload activations and KV caches, allowing
+large models like OPT-175B [37] to run on a single 16GB GPU, while
+Lamina [3] improves efficiency by shifting attention computation to
+CPUs. However, these methods are designed for dense LLMs and do
+not handle the dynamic, input-dependent routing of MoE models.
+Existing MoE offloading approaches either rely on low-accuracy
+heuristics [7, 17] or require costly predictor training [6, 12], limiting
+practical adoption. In contrast, we develop a unified system that
+provides accurate and low-cost expert routing prediction, enabling
+more efficient and flexible MoE inference.
+3
+Method
+3.1
+System Design Overview
+Deploying MoE models under tight memory budgets, such as single-
+GPU settings, is challenging due to dynamic expert routing, low
+expert utilization, and heavy parameter movement. These issues
+are interdependent: inaccurate routing prediction limits schedul-
+ing, fragmented token batches activate unnecessary experts, and
+poor memory planning amplifies transfer overhead. ExpertFlow ad-
+dresses these challenges through a unified design that integrates a
+routing path predictor (RPP), a token scheduler (TS), and an expert
+cache engine (ECE). The RPP provides early global routing signals,
+enabling the TS to reorganize tokens by predicted paths and the
+ECE to prefetch only the required experts. This prediction-informed
+coordination jointly optimizes expert execution, data movement,
+and memory usage, enabling efficient and scalable MoE inference
+on constrained hardware.
+
+ExpertFlow: Efficient Mixture-of-Experts Inference via Predictive Expert Caching and Token Scheduling
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+Decoder
+Prefetch
+experts
+across layers
+T5 Predictor
+Non-expert Layers
+Router
+Non-expert Layers
+Router
+Experts of layer 2
+Experts of layer 1
+Routing Path Prediction
+(B, S, L, E)
+Encoder
+0.1
+0.1
+0.7
+0.1
+0.1
+0.6
+0.1
+0.2
+Prompt Token
+Output Token
+Input Tokens (B, S)
+Figure 2: Routing Path Predictor (RPP). Given a batch of
+𝐵sequences, each with 𝑆input tokens, RPP predicts MoE
+expert activations across 𝐿layers and 𝐸experts in a single
+pass. It outputs activation probabilities of shape (𝐵,𝑆, 𝐿, 𝐸) to
+support early expert prefetching.
+3.2
+Routing Path Predictor (RPP)
+3.2.1
+Predictor Architecture. Existing predictors [12, 27] use MLPs
+to infer expert choices layer by layer, creating a sequential de-
+pendency that prevents early scheduling and prefetching. Expert-
+Flow replaces this design with a T5-style encoder–decoder archi-
+tecture [22] (Fig. 2). The encoder embeds the full input sequence,
+and the decoder generates routing predictions in one pass. We at-
+tach 𝐿lightweight heads to the decoder, each producing logits over
+𝐸experts for a specific MoE layer. This architecture exposes the
+complete routing plan before the first MoE layer executes, enabling
+early prefetching and coordinated memory planning.
+3.2.2
+Predictor Training. The predictor is trained to produce accu-
+rate routing paths for all 𝐿MoE layers, each comprising 𝐸experts,
+in a single forward pass. We log each token’s expert selections
+and encode its routing path as a binary matrix 𝑟∈{0, 1}𝐿×𝐸. The
+predictor outputs a probability matrix 𝑝of the same shape, and
+training is formulated as a multi-label classification task using bi-
+nary cross-entropy:
+L = 1
+𝐿𝐸
+𝐿
+∑︁
+𝑙=1
+𝐸
+∑︁
+𝑒=1
+
+𝑟𝑙,𝑒log𝑝𝑙,𝑒+ (1 −𝑟𝑙,𝑒) log(1 −𝑝𝑙,𝑒)
+
+.
+(1)
+3.3
+Token Scheduler (TS)
+In the decoding stage, an adverse routing pattern can arise where
+each small batch activates almost all experts while each expert
+receives only one token. Fig. 3 (left) illustrates this worst case
+for a single MoE layer with four experts and two batches of size
+four: tokens in each batch select different experts, so every batch
+activates all experts, causing frequent expert swapping and low per-
+expert workload. To address this, we introduce the Token Scheduler
+(TS), which rebatches tokens between two consecutive batches and
+groups tokens with similar expert selections into the same batch,
+as shown in Fig. 3 (right). This rebatching reduces the number of
+active experts per batch while increasing the tokens per expert,
+improving cache reuse and GPU efficiency.
+t1
+e2
+e1
+e3 e4
+t2
+t3t4
+t5
+t6t7
+t8
+Batch2
+e2
+e1
+e3 e4
+t1t7
+t3
+t5
+t2t6
+t4
+t8
+Batch1
+New Batch1
+New Batch2
+Orignal Expert Loads
+● Activate all experts per batch
+● Each expert computes 1 token
+Token
+Scheduler
+Optimized Expert Loads
+● Activate half experts per batch
+● Each expert computes 2 tokens
+Batch2
+Batch1
+Figure 3: Token Scheduler (TS). Left: normal batch inference
+routes tokens to different experts, producing a worst-case
+pattern where all experts are active with only one token.
+Right: TS groups tokens with similar routing path into new
+batches, reducing active experts and increasing per-expert
+token load for better efficiency.
+3.3.1
+Mathematical Formulation. Each token’s routing path is en-
+coded as a binary matrix 𝑟𝑖∈{0, 1}𝐿×𝐸. For two adjacent batches
+with 𝑇tokens each, we merge all 2𝑇tokens into a global set T =
+{1, 2, . . . , 2𝑇} and seek to split it into two disjoint batches T1 and
+T2 of equal size. The routing matrices for the new batches, 𝑅1
+and 𝑅2, are obtained by applying an element-wise logical OR Ô
+over the routing paths of the tokens assigned to each batch 𝑅1 =
+Ô
+𝑖∈T1 𝑟𝑖, 𝑅2 = Ô
+𝑖∈T2 𝑟𝑖. The objective is to minimize the total num-
+ber of activated experts across both batches:
+min
+T1,T2
+𝐿
+∑︁
+𝑙=1
+𝐸
+∑︁
+𝑒=1
+ 𝑅𝑙,𝑒
+1 + 𝑅𝑙,𝑒
+2
+,
+(2)
+where 𝑅𝑙,𝑒
+𝑘
+= 1 indicating that expert 𝑒at layer 𝑙is activated in
+batch 𝑘. This objective explicitly promotes expert-wise co-location
+of similar tokens to reduce cache misses and raise per-expert load.
+3.3.2
+K-Means Clustering for Fast Token Rebatching. Solving Eq. 2
+exactly online is intractable, so we approximate it using a K-means-
+style clustering over routing-path similarity. For the 2𝑇tokens,
+we construct a similarity matrix 𝑆∈R2𝑇×2𝑇, where 𝑆𝑖𝑗= 1 −𝑑𝑖𝑗
+𝐿𝐸
+measures how close the routing paths of tokens 𝑖and 𝑗are, with 𝑑𝑖𝑗
+being their Hamming distance. We cluster tokens into two equal-
+size groups by iteratively assigning each token to the closest cluster
+under 𝑆and updating centroids as the tokens with the highest
+average intra-cluster similarity. The procedure converges quickly
+or stops after a preset iteration limit, yielding (T1, T2) as a fast
+approximation to Eq. 2 with negligible CPU overhead (<10ms).
+3.3.3
+Adaptive KV-Cache Management. Rebatching perturbs token
+orderings assumed by the transformer’s key–value (KV) cache.
+TS therefore incorporates two lightweight primitives to preserve
+attention semantics: Merge, which reconstructs the KV cache by
+
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+He et al.
+aggregating token states according to global token order across the
+original batches; and Reindex, which updates token indices to the
+new layout for consistent KV lookup post-reordering.
+3.3.4
+Dual-Batch Inference Pipeline. We propose a Dual-Batch In-
+ference Pipeline (Fig. 4) to hide the overhead of RPP and TS. The
+pipeline groups every two batches into one scheduling unit, which
+matches the requirement of TS to reorganize tokens across batches.
+During execution, model prefill and decoding for the current unit
+run in parallel with RPP and TS for the next unit. This interleaving
+avoids blocking and keeps the GPU well utilized.
+Token
+Scheduling (TS)
+Routing Path
+Prediction (RPP)
+1
+2
+3
+4
+Prefilling
+Time
+Dual-batch Pipeline
+with RPP&TS
+1
+2
+1 2
+1,2
+Sequential Pipeline
+with RPP&TS
+Decoding 
+(optimized by RPP&TS)
+1 2
+1 2
+3
+4
+3 4
+3,4
+3 4
+3 4
+1,2
+1,2
+3,4
+3,4
+1,2
+3,4
+1 2 3 4
+1,2
+1,2
+3,4
+1 2 3 4
+3,4
+1 2 3 4
+Figure 4: Sequential pipeline versus our Dual-Batch pipeline.
+3.4
+Expert Cache Engine (ECE)
+The Expert Cache Engine (ECE) manages expert parameters be-
+tween GPU and CPU by combining two components: Predictive
+Locality-aware Expert Caching (PLEC), which plans cache layout
+and prefetching based on predicted routing, and a Real-time Correc-
+tion mechanism that resolves prediction errors during execution.
+Together, they enable expert-level caching that is both proactive
+and adaptive to unexpected routing behaviors.
+3.4.1
+Predictive Locality-aware Expert Caching (PLEC). Unlike con-
+ventional cache policies such as LRU [1, 7, 36] and LFU [33], which
+operate without prediction and therefore use fixed per-layer cache
+allocations, PLEC leverages routing predictions to adaptively as-
+sign cache slots across layers and prefetch the experts required
+in the next computation stage. This adaptive slot planning allows
+the cache to better match the anticipated expert demand, reducing
+unnecessary swaps and improving the effectiveness of prefetching.
+As shown in Fig. 5, consider an MoE model with two layers and
+four experts per layer. The predictor forecasts that tokens 𝑡1,𝑡2,𝑡3
+will activate three experts in layer-1 (𝑒12,𝑒13,𝑒14) and two in layer-2
+(𝑒22,𝑒23), while the GPU cache can hold only four experts. Since the
+predicted demand (five experts) exceeds the cache budget, PLEC
+allocates slots according to predicted usage—three to layer-1 and
+one to layer-2 (step ①)—and prefetches the four most probable
+experts (𝑒12,𝑒13,𝑒14,𝑒22) before execution (step ②). During compu-
+tation, early-layer experts finish first and free their slots; these slots
+are then reused to load remaining predicted experts, such as loading
+𝑒23 once 𝑒12 completes. This predictive allocation combined with
+runtime reuse reduces transfers and improves cache efficiency.
+4
+Evaluation
+4.1
+Setup
+Hardware Settings. Our experiments were conducted on a single
+NVIDIA A40 GPU with 48 GB of memory and Intel(R) Xeon(R) Gold
+6338 CPU @ 2.00GHz.
+Tasks and MoEs. We evaluate on four datasets: Alpaca [30] for
+chat, WMT16 [2] for translation, XSUM [20] for summarization,
+and AIME2024 [11] for problem solving. Our experiments cover
+e13
+e14
+Low-Priority Queues
+e12
+e11
+e12
+Input tokens
+t1
+t2
+e22
+e24
+e23
+Real-time Correction 
+GPU
+e12
+...
+...
+MoE
+e14
+e21
+e13
+e23
+CPU
+e24
+e14
+e13
+e11
+e12
+e22
+Predictive Locality-aware
+Expert Caching
+High-Priority Queues
+e21
+Actual MoE Routing
+②Prefetech/
+Offload
+e23
+e24
+...
+...
+③Offload mis-prefeteched e23
+③Fetch missed e24
+① Pre-schedule experts based on Predicted
+Routing Path before MoE computation 
+ 
+mis-prediction for 
+Active Experts (on GPU)
+Idle Experts (on CPU)
+Empty Experts
+swap e23 and e24 during
+e22 computation
+t3
+e22
+e23
+Figure 5: The workflow of Expert Cache Engine (ECE). ECE
+pre-schedules experts to GPU based on routing predictions.
+During execution, it detects mispredictions (e.g., unwanted
+𝑒23 or missed 𝑒24) and performs prioritized swaps while 𝑒22
+runs, overlapping I/O with compute to maintain throughput.
+MoE
+L
+Act.P/P
+Act.E/E
+E.P
+Switch-32
+12
+0.22/1.98 B
+1/32
+91.58%
+Switch-64
+12
+0.22/3.79 B
+1/64
+95.61%
+Switch-128
+12
+0.22/7.41 B
+1/128
+97.75%
+Mixtral-8
+32
+12.90/46.70 B
+2/8
+96.57%
+Qwen1.5
+24
+2.70/14.30 B
+4/60
+88.95%
+Deepseek-MoE
+27
+2.80/16.40 B
+6/64
+94.14%
+Table 1: MoE Configurations. L, P, and E denote layers, total
+parameters, and experts per layer. Act.P and Act.E refer to
+activated parameters and experts per token. E.P is the expert-
+to-total parameter ratio.
+six MoE models: Qwen1.5-MoE [31], Deepseek-MoE [5], Mixtral-
+8×7B [14], and Switch Transformer with 32, 64, and 128 experts [8].
+Model specifications are provided in Table 1.
+Predictor Settings. To evaluate robustness under domain shift,
+we consider two types of routing path predictors (RPP). An in-
+domain predictor is trained on the same dataset used for inference,
+while a cross-domain predictor is trained on a different dataset. For
+example, when evaluating on WMT16, the in-domain RPP is trained
+on WMT16, whereas the cross-domain RPP is trained on XSUM.
+4.2
+Inference Performance
+4.2.1
+Baselines. We compare against three representative meth-
+ods. Cache-MoE [7] maintains a fixed per-layer expert cache with
+LRU replacement, falling back to CPU on misses. SE-MoE [35]
+preloads experts for multiple layers and employs ring scheduling
+to overlap compute and data movement. Pregated-MoE [12] trains
+MLP-based routers to select experts without runtime gating. All
+three are evaluated on Switch Transformers, which their imple-
+mentations fully support. For Mixtral-8 and Qwen1.5, we report
+against Cache-MoE only, as other baselines lack architectural sup-
+port and router weights; under these conditions, Cache-MoE is a
+strong baseline.
+4.2.2
+In-domain Throughput. We evaluate four model–dataset pairs
+(Switch on WMT16, Mixtral-8 on XSUM, Qwen1.5 on Alpaca and
+
+ExpertFlow: Efficient Mixture-of-Experts Inference via Predictive Expert Caching and Token Scheduling
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+SE-MoE
+Pregated-MoE
+Cache-MoE
+ExpertFlow
+Switch-32
+Switch-64
+Switch-128
+0
+200
+400
+600
+Throughput (tokens/s)
+(CS,BS)=(4,8)
+3.16×
+(8,16)
+2.44×
+(16,32)
+2.01×
+(4,8)
+5.27×
+(8,16)
+4.29×
+(16,32)
+3.19×
+(4,8)
+9.99×
+(8,16)
+7.97×
+(16,32)
+5.86×
+(a) Switch Series (WMT16)
+Cache-MoE
+ExpertFlow
+0
+2
+4
+6
+8
+Throughput (tokens/s)
+(CS,BS) =
+(1,4)
+1.84×
+(1,8)
+1.87×
+(1,16)
+1.87×
+(3,4)
+1.86×
+(3,8)
+1.96×
+(3,16)
+1.99×
+(b) Mixtral-8 (XSUM)
+Cache-MoE
+ExpertFlow
+0
+10
+20
+30
+Throughput (tokens/s)
+(CS,BS) = (2,4)
+1.96×
+(2,8)
+2.08×
+(2,16)
+2.16×
+(4,4)
+1.85×
+(4,8)
+2.00×
+(4,16)
+2.12×
+(8,4)
+1.61×
+(8,8)
+1.85×
+(8,16)
+2.04×
+(c) Qwen1.5 (Alpaca)
+Cache-MoE
+ExpertFlow
+(2,4)
+(2,8)
+(2,16)
+(4,4)
+(4,8)
+(4,16)
+(8,4)
+(8,8)
+(8,16)
+0
+5
+10
+15
+20
+25
+30
+Throughput (tokens/s)
+1.79×
+1.87×
+1.94×
+1.67×
+1.82×
+1.90×
+1.47×
+1.69×
+1.83×
+(CS,BS) =
+(d) Deepseek-MoE (AIME2024)
+Figure 6: Throughput across different MoE models and datasets. Our results are obtained using in-domain predictors.
+Cache-MoE
+ExpertFlow
+0
+10
+20
+30
+Throughput (tokens/s)
+(CS,BS) = (2,4)
+2.03×
+(2,8)
+2.12×
+(2,16)
+2.14×
+(4,4)
+1.95×
+(4,8)
+2.08×
+(4,16)
+2.18×
+(8,4)
+1.78×
+(8,8)
+2.02×
+(8,16)
+2.15×
+(a) WMT16
+Cache-MoE
+ExpertFlow
+0
+10
+20
+30
+Throughput (tokens/s)
+(CS,BS) = (2,4)
+2.02×
+(2,8)
+2.12×
+(2,16)
+2.20×
+(4,4)
+1.95×
+(4,8)
+2.12×
+(4,16)
+2.21×
+(8,4)
+1.82×
+(8,8)
+2.08×
+(8,16)
+2.20×
+(b) XSUM
+Figure 7: Throughput comparison for Qwen1.5 on WMT16
+and XSUM datasets. Our results are obtained using a cross-
+domain predictor trained on Alpaca.
+Switch-32
+Switch-64
+Switch-128
+Deepseek-MoE
+Qwen1.5-MoE
+Mixtral8x7B
+0
+5
+10
+15
+20
+25
+30
+35
+GPU Memory Usage (GB)
+OOM
+3.99
+7.74
+15.26
+31.35
+35.21
+1.02
+1.03
+1.03
+6.38
+6.52
+15.99
+AIG
+ExpertFlow
+Figure 8: GPU memory usage (GB) of All-in-GPU (AIG) and
+our offloading-based system for different MoE models.
+Deepseek-MoE on AIME2024) under varying cache size (CS) and
+batch size (BS) (Fig. 6). For the Switch series (Fig. 6a), gains in-
+crease with the number of experts: at (CS=16, BS=32), our method
+yields 2.01×, 3.19×, and 5.86× speedups over SE-MoE on Switch-
+32/64/128, respectively. On Switch-128, tightening memory further
+amplifies benefits: reducing CS from 16 to 4 increases speedup
+from 5.86× to 9.99×. For Mixtral-8, Qwen1.5 and Deepseek-MoE
+(Figs. 6b–d), throughput improves with larger BS due to TS-enabled
+expert reuse; we outperform Cache-MoE by up to 1.99× (Mixtral-8),
+2.12× (Qwen1.5) and 1.94× (Deepseek-MoE) via accurate prefetch-
+ing and reduced load latency.
+4.2.3
+Cross-domain Throughput. To assess robustness, we apply
+an RPP trained on Alpaca to Qwen1.5 inference on XSUM and
+WMT16 (Fig. 7). Our method consistently surpasses Cache-MoE,
+achieving up to 2.18× (WMT16) and 2.21× (XSUM) at (CS=4, BS=16),
+indicating that the RPP captures expert-activation patterns that
+generalize across tasks.
+4.2.4
+Memory Cost. We compare peak GPU memory against an
+All-In-GPU (AIG) baseline that retains all parameters in GPU
+(Fig. 8). Our approach reduces memory by up to 93% across Switch
+models (e.g., Switch-128: 15.26 GB →1.03 GB), from 31.35 GB to
+6.38 GB on Deepseek-MoE, and from 35.21 GB to 6.52 GB on Qwen1.5.
+Notably, Mixtral-8×7B triggers OOM under AIG but completes with
+our system using only 15.99 GB.
+4.3
+Predictor Evaluation
+4.3.1
+Routing Path Datasets. For each combination of task (i.e., Al-
+paca, XSUM, and WMT16) and MoE model, we construct a Routing
+Path Dataset (RPD) to train and evaluate the routing predictor. We
+first sample 10,000 input sequences and run each sequence through
+the MoE model three times to collect diverse output tokens and
+the corresponding routing paths of both inputs and outputs. This
+yields 30,000 input–output–path triples per RPD. Each RPD is then
+split into training and test sets.
+4.3.2
+Predictor Settings. To balance between performance and size,
+we conducted grid search on predictor architecture settings. The
+final RPP has a feed-forward dimension of 2048, and a hidden size
+of 32, resulting in a 7.21 MB model size.
+4.3.3
+Evaluation Metrics. To assess prediction performance in an
+MoE model with 𝐿layers and 𝐸experts per layer, we define the
+batch-level accuracy (Bacc) as:
+Bacc = 1
+𝐿
+𝐿−1
+∑︁
+𝑖=0
+Í𝐸−1
+𝑗=0 I(𝑅batch[𝑖, 𝑗] = 1 & ˆ𝑅batch[𝑖, 𝑗] = 1)
+Í𝐸−1
+𝑗=0 I(𝑅batch[𝑖, 𝑗] = 1)
+,
+where 𝑅batch and ˆ𝑅batch are the ground-truth and predicted batch-
+level routing matrices, respectively, both in {0, 1}𝐿×𝐸. We apply a
+bitwise OR over the token-level routing paths 𝑟𝑖∈{0, 1}𝐿×𝐸to get
+the batch-level results 𝑅batch = 𝑟1 ∨𝑟2 ∨· · · ∨𝑟𝑛.
+4.3.4
+Predictor Performance. Fig. 9 presents the performance of our
+routing path predictor (RPP) and two baselines: temporal-locality
+prediction (TLP), which uses the previous decoding step’s routing,
+and spatial-locality prediction (SLP), which relies on the previ-
+ous layer’s expert assignment. Both are simple heuristics that lack
+context-awareness.
+RPP consistently achieves high prediction accuracy across MoE
+models and datasets. It outperforms both TLP and SLP in all settings,
+with over 90% accuracy in most in-domain cases and only a modest
+drop (typically 5–10%) in cross-domain scenarios. For example, on
+Switch64 (Fig. 9b), our predictor maintains 80–90% accuracy in
+both domains, while baselines remain below 20%. This highlights
+RPP’s strong generalization ability. Additionally, TLP consistently
+surpasses SLP, suggesting that temporal cues are more predictive
+than layer-wise locality.
+Despite differing routing mechanisms, RPP adapts well across
+models. On Switch models (a–c), accuracy declines with depth
+and expert count, reflecting increased uncertainty. Mixtral-8 (d)
+shows larger prediction variance for baselines due to its Top-2
+routing, while RPP remains above 90% and more stable. On Qwen1.5
+(e–f), our predictor achieves the highest accuracy (over 95%), with
+minimal domain shift impact. These results demonstrate RPP’s
+ability to capture complex and model-specific expert behaviors.
+
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+He et al.
+0
+2
+4
+Layer Index
+0.4
+0.6
+0.8
+Accuracy
+ExpertFlow(WMT16)
+ExpertFlow(XSUM)
+TLP
+SLP
+(a) Switch32
+0
+2
+4
+Layer Index
+0.2
+0.4
+0.6
+0.8
+Accuracy
+ExpertFlow(WMT16)
+ExpertFlow(XSUM)
+TLP
+SLP
+(b) Switch64
+0
+2
+4
+Layer Index
+0.2
+0.4
+0.6
+0.8
+Accuracy
+ExpertFlow(WMT16)
+ExpertFlow(XSUM)
+TLP
+SLP
+(c) Switch128
+0
+10
+20
+30
+Layer Index
+0.92
+0.94
+0.96
+0.98
+Accuracy
+ExpertFlow(WMT16)
+ExpertFlow(XSUM)
+TLP
+SLP
+(d) Mixtral-8
+0
+10
+20
+Layer Index
+0.7
+0.8
+0.9
+Accuracy
+ExpertFlow(ALPACA)
+TLP
+SLP
+(e) Qwen1.5
+0
+10
+20
+Layer Index
+0.7
+0.8
+0.9
+Accuracy
+ExpertFlow(ALPACA)
+TLP
+SLP
+(f) Qwen1.5(Alpaca)
+Figure 9: Layer-wise expert prediction accuracy across
+MoE models. “ExpertFlow(dataset)” indicates our predictor
+trained on the specified dataset (e.g., XSUM or WMT16). Or-
+ange and blue curves represent in-domain and cross-domain
+prediction accuracy, respectively. Subfigures (a–e) report ac-
+curacy on XSUM; (f) shows in-domain results on Alpaca.
+Our method consistently outperforms temporal-locality pre-
+diction (TLP) and spatial-locality prediction (SLP) baselines
+across all cases.
+4.4
+Ablation Study
+4.4.1
+Expert Cache Hit Ratio. Fig. 10 compares expert cache hit
+ratios between LRU and our PLEC strategy on Switch-32. Our ap-
+proach consistently outperforms LRU, with hit rates 15-36% higher
+across all configurations. At CS=16, PLEC maintains high hit ratios
+(91.90% to 85.91%, only 6.05% decrease) as batch size increases from
+4 to 16, while LRU drops significantly (76.61% to 58.37%, an 18.24%
+decline). The performance gap widens at larger batch sizes, with
+PLEC achieving 71.89% hit ratio at CS=8/BS=16 compared to LRU’s
+36.22%. This stability demonstrates our predictive approach’s effec-
+tiveness in allocating cache resources based on anticipated expert
+patterns, particularly beneficial in high-throughput scenarios.
+4.4.2
+Impact of Token Scheduler (TS) under Varying Expert Counts.
+We evaluate the TS on the Switch-series models to study its impact
+4
+8
+16
+Batch Size
+0.4
+0.5
+0.6
+0.7
+0.8
+0.9
+Hit Ratio (%)
+86.35%
+79.88%
+71.89%
+57.21%
+44.90%
+36.22%
+91.96%
+88.84%
+85.91%
+76.61%
+65.62%
+58.37%
+Ours (CS=8)
+LRU (CS=8)
+Ours (CS=16)
+LRU (CS=16)
+Figure 10: Comparison of expert cache hit ratio on Switch-32
+under different batch size and cache size (CS).
+Table 2: Impact of the Token Scheduler (TS) on throughput.
+Model
+Throughput (tokens/second)
+w/o TS
+with TS
+Switch-32
+854.19
+881.91 (1.03×)
+Switch-64
+680.72
+788.30 (1.15×)
+Switch-128
+628.36
+735.35 (1.17×)
+under different expert counts. This setup allows us to isolate the
+effect of TS as model sparsity increases. As shown in Table 2, TS
+yields consistent throughput improvements: 1.03× on Switch-32,
+1.15× on Switch-64, and 1.17× on Switch-128. While the absolute
+gains vary, a general trend of improved benefit with more experts
+is observed. This is attributed to the fact that, with a larger num-
+ber of experts, token-to-expert assignments tend to become more
+fragmented. TS alleviates this by rebatching tokens with similar
+routing paths, improving load balance and computational efficiency
+across experts.
+5
+Conclusion
+We introduced ExpertFlow, a unified system for memory-efficient
+MoE inference under tight GPU constraints. By integrating a Rout-
+ing Path Predictor, a routing-aware Token Scheduler, and a
+predictive Expert Cache Engine, ExpertFlow enables early expert
+planning, higher expert utilization, and reduced CPU–GPU trans-
+fers, yielding up to 93.72% peak memory reduction and up to 10×
+throughput improvement across diverse MoE architectures when
+compared with strong offloading baselines. Accurate routing pre-
+diction also shows broader value for distributed expert placement,
+routing-guided pruning, and hierarchical caching, positioning Ex-
+pertFlow as a foundation for future system-level co-design that
+incorporates predictive routing into scalable sparse model deploy-
+ment and training.
+Acknowledgments
+This research is supported by the Career Development Fund (CDF)
+of the Agency for Science, Technology and Research (A*STAR),
+Singapore (No. C243512012); partially by the National Natural Sci-
+ence Foundation of China (NSFC) (No. 62302123) and the Shenzhen
+Science and Technology Program (Nos. KJZD20240903104103005,
+KJZD20230923114213027, KJZD20230923115113026); and partially
+by the National Research Foundation (NRF), Singapore, through
+the AI Singapore Programme under the project titled “AI-based
+Urban Cooling Technology Development”(Award No. AISG3-TC-
+2024-014-SGKR).
+
+ExpertFlow: Efficient Mixture-of-Experts Inference via Predictive Expert Caching and Token Scheduling
+DAC ’26, July 26–29, 2026, Long Beach, CA, USA
+References
+[1] Reza Yazdani Aminabadi, Samyam Rajbhandari, Ammar Ahmad Awan, Cheng Li,
+Du Li, Elton Zheng, Olatunji Ruwase, Shaden Smith, Minjia Zhang, Jeff Rasley,
+and Yuxiong He. 2022. DeepSpeed- Inference: Enabling Efficient Inference of
+Transformer Models at Unprecedented Scale. In SC22: International Conference
+for High Performance Computing, Networking, Storage and Analysis. 1–15. doi:10.
+1109/SC41404.2022.00051
+[2] Ondřej Bojar, Rajen Chatterjee, Christian Federmann, Yvette Graham, Barry Had-
+dow, Matthias Huck, Antonio Jimeno Yepes, Philipp Koehn, Varvara Logacheva,
+Christof Monz, Matteo Negri, Aurélie Névéol, Mariana Neves, Martin Popel, Matt
+Post, Raphael Rubino, Carolina Scarton, Lucia Specia, Marco Turchi, Karin Ver-
+spoor, and Marcos Zampieri. 2016. Findings of the 2016 Conference on Machine
+Translation. In Proceedings of the First Conference on Machine Translation: Volume
+2, Shared Task Papers, Ondřej Bojar, Christian Buck, Rajen Chatterjee, Chris-
+tian Federmann, Liane Guillou, Barry Haddow, Matthias Huck, Antonio Jimeno
+Yepes, Aurélie Névéol, Mariana Neves, Pavel Pecina, Martin Popel, Philipp Koehn,
+Christof Monz, Matteo Negri, Matt Post, Lucia Specia, Karin Verspoor, Jörg Tiede-
+mann, and Marco Turchi (Eds.). Association for Computational Linguistics, Berlin,
+Germany, 131–198. doi:10.18653/v1/W16-2301
+[3] Shaoyuan Chen, Wencong Xiao, Yutong Lin, Mingxing Zhang, Yingdi Shan,
+Jinlei Jiang, Kang Chen, and Yongwei Wu. 2025.
+Efficient Heteroge-
+neous Large Language Model Decoding with Model-Attention Disaggregation.
+arXiv:2405.01814 [cs.LG] https://arxiv.org/abs/2405.01814
+[4] Tianyu Chen, Shaohan Huang, Yuan Xie, Binxing Jiao, Daxin Jiang, Haoyi Zhou,
+Jianxin Li, and Furu Wei. 2022. Task-Specific Expert Pruning for Sparse Mixture-
+of-Experts. arXiv:2206.00277 [cs.LG] https://arxiv.org/abs/2206.00277
+[5] Damai Dai, Chengqi Deng, Chenggang Zhao, R.x. Xu, Huazuo Gao, Deli Chen,
+Jiashi Li, Wangding Zeng, Xingkai Yu, Y. Wu, Zhenda Xie, Y.k. Li, Panpan Huang,
+Fuli Luo, Chong Ruan, Zhifang Sui, and Wenfeng Liang. 2024. DeepSeekMoE:
+Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models.
+(Aug. 2024), 1280–1297. doi:10.18653/v1/2024.acl-long.70
+[6] Zhixu Du, Shiyu Li, Yuhao Wu, Xiangyu Jiang, Jingwei Sun, Qilin Zheng, Yongkai
+Wu, Ang Li, Hai Helen Li, and Yiran Chen. 2024.
+SiDA: Sparsity-Inspired
+Data-Aware Serving for Efficient and Scalable Large Mixture-of-Experts Models.
+6 (2024), 224–238.
+https://proceedings.mlsys.org/paper_files/paper/2024/file/
+698cfaf72a208aef2e78bcac55b74328-Paper-Conference.pdf
+[7] Artyom Eliseev and Denis Mazur. 2023. Fast Inference of Mixture-of-Experts
+Language Models with Offloading. arXiv:2312.17238 [cs.LG] https://arxiv.org/
+abs/2312.17238
+[8] William Fedus, Barret Zoph, and Noam Shazeer. 2022. Switch transformers:
+Scaling to trillion parameter models with simple and efficient sparsity. Journal
+of Machine Learning Research 23, 120 (2022), 1–39.
+[9] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh. 2023. GPTQ:
+Accurate Post-Training Quantization for Generative Pre-trained Transformers.
+arXiv:2210.17323 [cs.LG] https://arxiv.org/abs/2210.17323
+[10] Daya Guo, Qihao Zhu, Dejian Yang, Zhenda Xie, Kai Dong, Wentao Zhang,
+Guanting Chen, Xiao Bi, Y. Wu, Y. K. Li, Fuli Luo, Yingfei Xiong, and Wen-
+feng Liang. 2024. DeepSeek-Coder: When the Large Language Model Meets
+Programming – The Rise of Code Intelligence. arXiv:2401.14196 [cs.SE] https:
+//arxiv.org/abs/2401.14196
+[11] Hugging Face H4. 2024. AIME 2024 Dataset. https://huggingface.co/datasets/
+HuggingFaceH4/aime_2024
+[12] Ranggi Hwang, Jianyu Wei, Shijie Cao, Changho Hwang, Xiaohu Tang, Ting
+Cao, and Mao Yang. 2024. Pre-gated MoE: An Algorithm-System Co-Design for
+Fast and Scalable Mixture-of-Expert Inference. In 2024 ACM/IEEE 51st Annual
+International Symposium on Computer Architecture (ISCA). 1018–1031. doi:10.
+1109/ISCA59077.2024.00078
+[13] Robert A. Jacobs, Michael I. Jordan, Steven J. Nowlan, and Geoffrey E. Hinton.
+1991. Adaptive Mixtures of Local Experts. Neural Computation 3, 1 (1991), 79–87.
+doi:10.1162/neco.1991.3.1.79
+[14] Albert Q. Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch, Blanche
+Savary, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Emma Bou
+Hanna, Florian Bressand, Gianna Lengyel, Guillaume Bour, Guillaume Lample,
+Lélio Renard Lavaud, Lucile Saulnier, Marie-Anne Lachaux, Pierre Stock, Sandeep
+Subramanian, Sophia Yang, Szymon Antoniak, Teven Le Scao, Théophile Gervet,
+Thibaut Lavril, Thomas Wang, Timothée Lacroix, and William El Sayed. 2024.
+Mixtral of Experts. arXiv:2401.04088 [cs.LG] https://arxiv.org/abs/2401.04088
+[15] Keisuke Kamahori, Tian Tang, Yile Gu, Kan Zhu, and Baris Kasikci. 2025. Fid-
+dler: CPU-GPU Orchestration for Fast Inference of Mixture-of-Experts Models.
+arXiv:2402.07033 [cs.LG] https://arxiv.org/abs/2402.07033
+[16] Young Jin Kim, Raffy Fahim, and Hany Hassan Awadalla. 2023. Mixture of
+Quantized Experts (MoQE): Complementary Effect of Low-bit Quantization and
+Robustness. arXiv:2310.02410 [cs.LG] https://arxiv.org/abs/2310.02410
+[17] Jiamin Li, Yimin Jiang, Yibo Zhu, Cong Wang, and Hong Xu. 2023. Accelerating
+Distributed MoE Training and Inference with Lina. In 2023 USENIX Annual
+Technical Conference (USENIX ATC 23). USENIX Association, Boston, MA, 945–
+959. https://www.usenix.org/conference/atc23/presentation/li-jiamin
+[18] Pingzhi Li, Xiaolong Jin, Zhen Tan, Yu Cheng, and Tianlong Chen. 2025.
+QuantMoE-Bench: Examining Post-Training Quantization for Mixture-of-Experts.
+arXiv:2406.08155 [cs.LG] https://arxiv.org/abs/2406.08155
+[19] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen
+Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han. 2024. AWQ:
+Activation-aware Weight Quantization for On-Device LLM Compression and
+Acceleration. 6 (2024), 87–100. https://proceedings.mlsys.org/paper_files/paper/
+2024/file/42a452cbafa9dd64e9ba4aa95cc1ef21-Paper-Conference.pdf
+[20] Shashi Narayan, Shay B. Cohen, and Mirella Lapata. 2018. Don’t Give Me the
+Details, Just the Summary! Topic-Aware Convolutional Neural Networks for Ex-
+treme Summarization. In Proceedings of the 2018 Conference on Empirical Methods
+in Natural Language Processing, Ellen Riloff, David Chiang, Julia Hockenmaier,
+and Jun’ichi Tsujii (Eds.). Association for Computational Linguistics, Brussels,
+Belgium, 1797–1807. doi:10.18653/v1/D18-1206
+[21] Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya
+Sutskever. 2019. Language Models are Unsupervised Multitask Learners. (2019).
+[22] Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang,
+Michael Matena, Yanqi Zhou, Wei Li, and Peter J. Liu. 2020. Exploring the Limits
+of Transfer Learning with a Unified Text-to-Text Transformer. Journal of Machine
+Learning Research 21, 140 (2020), 1–67. http://jmlr.org/papers/v21/20-074.html
+[23] Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He. 2020. ZeRO:
+Memory optimizations Toward Training Trillion Parameter Models. In SC20:
+International Conference for High Performance Computing, Networking, Storage
+and Analysis. 1–16. doi:10.1109/SC41405.2020.00024
+[24] Jie Ren, Samyam Rajbhandari, Reza Yazdani Aminabadi, Olatunji Ruwase,
+Shuangyan Yang, Minjia Zhang, Dong Li, and Yuxiong He. 2021.
+ZeRO-
+Offload: Democratizing Billion-Scale Model Training. In 2021 USENIX Annual
+Technical Conference (USENIX ATC 21). USENIX Association, 551–564.
+https:
+//www.usenix.org/conference/atc21/presentation/ren-jie
+[25] Noam Shazeer, *Azalia Mirhoseini, *Krzysztof Maziarz, Andy Davis, Quoc Le,
+Geoffrey Hinton, and Jeff Dean. 2017. Outrageously Large Neural Networks: The
+Sparsely-Gated Mixture-of-Experts Layer. In International Conference on Learning
+Representations. https://openreview.net/forum?id=B1ckMDqlg
+[26] Ying Sheng, Lianmin Zheng, Binhang Yuan, Zhuohan Li, Max Ryabinin, Beidi
+Chen, Percy Liang, Christopher Re, Ion Stoica, and Ce Zhang. 2023. FlexGen:
+High-Throughput Generative Inference of Large Language Models with a Single
+GPU. In Proceedings of the 40th International Conference on Machine Learning
+(Proceedings of Machine Learning Research, Vol. 202), Andreas Krause, Emma
+Brunskill, Kyunghyun Cho, Barbara Engelhardt, Sivan Sabato, and Jonathan
+Scarlett (Eds.). PMLR, 31094–31116. https://proceedings.mlr.press/v202/sheng23a.
+html
+[27] Xiaoniu Song, Zihang Zhong, Rong Chen, and Haibo Chen. 2025. ProMoE: Fast
+MoE-based LLM Serving using Proactive Caching. arXiv:2410.22134 [cs.DC]
+https://arxiv.org/abs/2410.22134
+[28] Yixin Song, Zeyu Mi, Haotong Xie, and Haibo Chen. 2024. PowerInfer: Fast
+Large Language Model Serving with a Consumer-grade GPU. (2024), 590–606.
+doi:10.1145/3694715.3695964
+[29] Zhenheng Tang, Yonggang Zhang, Peijie Dong, Yiu-ming Cheung, Amelie Chi
+Zhou, Bo Han, and Xiaowen Chu. 2024. FuseFL: One-Shot Federated Learning
+through the Lens of Causality with Progressive Model Fusion. In Advances in
+Neural Information Processing Systems, A. Globerson, L. Mackey, D. Belgrave,
+A. Fan, U. Paquet, J. Tomczak, and C. Zhang (Eds.), Vol. 37. Curran Associates,
+Inc., 28393–28429. doi:10.52202/079017-0891
+[30] Rohan Taori, Ishaan Gulrajani, Tianyi Zhang, Yann Dubois, Xuechen Li, Carlos
+Guestrin, Percy Liang, and Tatsunori B. Hashimoto. 2023. Stanford Alpaca: An
+Instruction-following LLaMA model. https://github.com/tatsu-lab/stanford_
+alpaca.
+[31] Qwen Team. 2024. Qwen1.5-MoE: Matching 7B Model Performance with 1/3
+Activated Parameters". https://qwenlm.github.io/blog/qwen-moe/
+[32] Samuel Williams, Andrew Waterman, and David Patterson. 2009. Roofline: an
+insightful visual performance model for multicore architectures. Commun. ACM
+52, 4 (April 2009), 65–76. doi:10.1145/1498765.1498785
+[33] Minrui Xu, Dusit Niyato, Hongliang Zhang, Jiawen Kang, Zehui Xiong, Shiwen
+Mao, and Zhu Han. 2026. Cached Model-as-a-Resource: Provisioning Large
+Language Model Agents for Edge Intelligence in Space–Air–Ground Integrated
+Networks. IEEE Transactions on Networking 34 (2026), 2850–2864. doi:10.1109/
+TON.2025.3649068
+[34] Fuzhao Xue, Zian Zheng, Yao Fu, Jinjie Ni, Zangwei Zheng, Wangchunshu Zhou,
+and Yang You. 2024. OpenMoE: An Early Effort on Open Mixture-of-Experts
+Language Models. arXiv:2402.01739 [cs.CL] https://arxiv.org/abs/2402.01739
+[35] Dianhai Yu, Liang Shen, Hongxiang Hao, Weibao Gong, Huachao Wu, Jiang
+Bian, Lirong Dai, and Haoyi Xiong. 2024.
+MoESys: A Distributed and Effi-
+cient Mixture-of-Experts Training and Inference System for Internet Services.
+arXiv:2205.10034 [cs.DC] https://arxiv.org/abs/2205.10034
+[36] Xiaoming Yuan, Weixuan Kong, Zhenyu Luo, and Minrui Xu. 2024. Efficient
+Inference Offloading for Mixture-of-Experts Large Language Models in Internet
+of Medical Things. Electronics 13, 11 (2024). doi:10.3390/electronics13112077
+[37] Susan Zhang, Stephen Roller, Naman Goyal, Mikel Artetxe, Moya Chen, Shuohui
+Chen, Christopher Dewan, Mona Diab, Xian Li, Xi Victoria Lin, Todor Mihaylov,
+Myle Ott, Sam Shleifer, Kurt Shuster, Daniel Simig, Punit Singh Koura, Anjali
+Sridhar, Tianlu Wang, and Luke Zettlemoyer. 2022. OPT: Open Pre-trained
+Transformer Language Models. arXiv:2205.01068 [cs.CL] https://arxiv.org/abs/
+2205.01068

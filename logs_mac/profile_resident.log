@@ -1,0 +1,12 @@
+peaks: {'mem_bw': '538 G', 'flops_bf16': '57767 G', 'flops_q4': '53765 G'}
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 4991.73it/s]
+resident decode  B= 1: timeline     0.54 ms (measured end-to-end     0.71 ms)  gpu ops    0.54 ms  io wait    0.00 ms  SSD reads 0
+resident decode  B= 8: timeline     1.34 ms (measured end-to-end     1.43 ms)  gpu ops    1.34 ms  io wait    0.00 ms  SSD reads 0
+resident decode  B=16: timeline     2.22 ms (measured end-to-end     2.38 ms)  gpu ops    2.22 ms  io wait    0.00 ms  SSD reads 0
+resident decode  B=32: timeline     3.91 ms (measured end-to-end     3.87 ms)  gpu ops    3.91 ms  io wait    0.00 ms  SSD reads 0
+resident decode  B=64: timeline     4.70 ms (measured end-to-end     4.80 ms)  gpu ops    4.70 ms  io wait    0.00 ms  SSD reads 0
+resident prefill B= 1: timeline     5.17 ms (measured end-to-end     5.42 ms)  gpu ops    5.17 ms  io wait    0.00 ms  SSD reads 0
+resident prefill B= 8: timeline    19.34 ms (measured end-to-end    19.24 ms)  gpu ops   19.34 ms  io wait    0.00 ms  SSD reads 0
+resident prefill B=16: timeline    36.24 ms (measured end-to-end    36.03 ms)  gpu ops   36.24 ms  io wait    0.00 ms  SSD reads 0
+resident prefill B=32: timeline    69.58 ms (measured end-to-end    68.01 ms)  gpu ops   69.58 ms  io wait    0.00 ms  SSD reads 0
+resident prefill B=64: timeline   138.58 ms (measured end-to-end   133.50 ms)  gpu ops  138.58 ms  io wait    0.00 ms  SSD reads 0

@@ -1,0 +1,24 @@
+Metric,Unit,rag,rag_kv
+Hits@1,,0.2500,0.2500
+F1,,0.1948,0.1948
+Decode KV cache,bool,0.0000,1.0000
+Avg prompt tokens,tok,201.3438,201.3438
+Avg context tokens,tok,106.5312,106.5312
+Avg items retrieved,,5.0000,5.0000
+Retrieval mean (ms),ms,80.0579,454.2210
+Retrieval p95 (ms),ms,130.4804,1392.8885
+TTFT mean (ms),ms,162.1641,80.9365
+Decode mean (ms),ms,12328.4855,2064.9726
+E2E mean (ms),ms,13044.9845,3127.2224
+E2E p95 (ms),ms,26010.1935,5425.5003
+E2E p99 (ms),ms,27949.8976,5730.6314
+Gen tok/s,tok/s,226.7198,1117.1549
+Queries/s,q/s,0.6133,2.5582
+Decode BW mean (GB/s),GB/s,184.7085,994.6496
+% HBM peak,%,9.5457,51.4031
+Peak HBM (GB),GB,13.7241,14.7752
+Model size (GB),GB,13.4769,13.4769
+Analytic HBM (GB),GB,15.1943,16.0374
+Arith intensity,F/B,1141.9178,1081.8892
+Retrieval % E2E,%,0.6137,14.5247
+Generate % E2E,%,95.7506,68.6203

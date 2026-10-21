@@ -1,0 +1,17 @@
+# Core
+torch>=2.0.0
+transformers>=4.38.0
+datasets>=2.14.0
+networkx>=3.0
+numpy>=1.24.0
+tqdm>=4.65.0
+
+# Tokenizers / large-model loading
+sentencepiece>=0.1.99      # slow Llama/RoG tokenizers
+accelerate>=0.26.0         # device_map="auto" for multi-GPU model parallel
+
+# Notes
+# - Verified on torch 2.10 + transformers 5.2 (conda env `graphrag`) and on
+#   transformers 4.38. RoG's bundled tokenizer decodes incorrectly under
+#   transformers >= 5.x; generation.py works around this by loading the
+#   canonical meta-llama/Llama-2-7b-hf tokenizer for RoG (same vocabulary).

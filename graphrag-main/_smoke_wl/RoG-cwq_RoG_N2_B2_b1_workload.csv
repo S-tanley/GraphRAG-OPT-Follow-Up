@@ -1,0 +1,24 @@
+Metric,Unit,graphrag,graphrag_kv
+Hits@1,,0.5000,0.5000
+F1,,0.5000,0.5000
+Decode KV cache,bool,0.0000,1.0000
+Avg prompt tokens,tok,277.0000,277.0000
+Avg context tokens,tok,182.0000,182.0000
+Avg items retrieved,,5.0000,5.0000
+Retrieval mean (ms),ms,86.1409,85.0718
+Retrieval p95 (ms),ms,86.1409,85.0718
+TTFT mean (ms),ms,81.7419,34.9167
+Decode mean (ms),ms,746.6525,275.2990
+E2E mean (ms),ms,1293.2193,1274.3549
+E2E p95 (ms),ms,1293.2193,1274.3549
+E2E p99 (ms),ms,1293.2193,1274.3549
+Gen tok/s,tok/s,688.0780,1837.4316
+Queries/s,q/s,1.5465,1.5694
+Decode BW mean (GB/s),GB/s,252.6966,700.1223
+% HBM peak,%,13.0593,36.1820
+Peak HBM (GB),GB,13.5802,14.0595
+Model size (GB),GB,13.4769,13.4769
+Analytic HBM (GB),GB,12.3588,12.6492
+Arith intensity,F/B,484.5763,473.4493
+Retrieval % E2E,%,6.6610,6.6757
+Generate % E2E,%,64.0568,24.3430

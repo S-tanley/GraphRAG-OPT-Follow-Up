@@ -1,0 +1,32 @@
+[
+  {
+    "condition": "graphrag_opt",
+    "target_batch": 8,
+    "eff_batch": 8,
+    "n_samples": 256,
+    "oom": false,
+    "throughput_mean": 251.6107404317954,
+    "throughput_p95": 295.58815945627424,
+    "vram_peak_gb_mean": 13.485351936,
+    "vram_peak_gb_max": 13.485351936,
+    "sm_util_mean_pct": 0.0,
+    "sm_util_peak_pct": 0.0,
+    "gpu_busy_mean_pct": 99.9997063243206,
+    "gpu_busy_peak_pct": 100.0,
+    "gpu_busy_p95_pct": 100.0,
+    "mfu": 0.01086831886204444,
+    "mfu_pct": 1.09,
+    "peak_gpu_tflops": 312.0,
+    "gen_time_mean_s": 16.536988521495005,
+    "retrieve_time_mean_s": 0.42416390074504307,
+    "hits_at_1": 0.6953125,
+    "f1": 0.6337943089896214,
+    "model": "meta-llama/Llama-2-7b-hf",
+    "dataset": "rmanluo/RoG-cwq",
+    "seed": 42,
+    "max_new_tokens": 32,
+    "num_beams": 1,
+    "torch_compile": false,
+    "profiler_first_batch": null
+  }
+]
