@@ -3,9 +3,9 @@
 日期：2026-10-20（阿布扎比时间 22:00–23:40 跑完）
 机器：masdar H200，只用 GPU0、GPU1（NVLink 同组）；检索计时和离线分析用集群 CPU；量化对比在 Mac 上。
 对应 plan：
-- `plan/2026-10-19-moe-trajectory-anchor-plan.md`（P1 采集、P2 离线比较，顺带 P0）
-- `plan/2026-10-19-graphrag-kv-prefetch-plan.md`（K0，以及 K1 的复用率预览）
-- `plan/2026-10-18-moe-edge-mac-plan.md`（4bit 和 bf16 路由是否一致）
+- `archive/plan/2026-10-19-moe-trajectory-anchor-plan.md`（P1 采集、P2 离线比较，顺带 P0）
+- `archive/plan/2026-10-19-graphrag-kv-prefetch-plan.md`（K0，以及 K1 的复用率预览）
+- `archive/plan/2026-10-18-moe-edge-mac-plan.md`（4bit 和 bf16 路由是否一致）
 
 ---
 

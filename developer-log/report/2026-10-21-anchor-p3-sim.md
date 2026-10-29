@@ -2,7 +2,7 @@
 
 日期：2026-10-21（阿布扎比时间 01:00–03:10）
 接着：`report/2026-10-20-h200-quant-anchor-k0.md` §3（P1、P2 的预测准确率）
-plan：`plan/2026-10-19-moe-trajectory-anchor-plan.md` 的 P3（假设 A3）
+plan：`archive/plan/2026-10-19-moe-trajectory-anchor-plan.md` 的 P3（假设 A3）
 机器：
 - masdar 的 GPU0+1：重新采集 GATE h=5–8；
 - 集群 CPU：导出预测、跑模拟。

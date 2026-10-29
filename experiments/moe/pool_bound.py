@@ -9,6 +9,7 @@ Policies:
            more than round robin would make them wait), then repeatedly add
            the request whose next-token route adds the fewest new (layer, expert) pairs -- using the TRUE routes
   prev     the same greedy, but scoring each request by the route of its PREVIOUS token (known before the step)
+  anchor / mix   the same greedy with next_token_pred.py's predictions (--pred_dir): P-anchor, P-mix (plan 3.1)
 Cost is always computed on the true routes. Reported: distinct experts per layer per token (lower is better),
 relative to fcfs, and the wait (steps skipped) distribution.
 
@@ -18,6 +19,8 @@ relative to fcfs, and the wait (steps skipped) distribution.
 import argparse
 import glob
 import json
+import multiprocessing as mp
+import os
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -25,7 +28,7 @@ import numpy as np
 _R = {}
 
 
-def load(trace, E):
+def load(trace, E, pred_dir=None):
     reqs = []
     for f in sorted(glob.glob(trace + "/q*.npz")):
         z = np.load(f)
@@ -33,7 +36,11 @@ def load(trace, E):
         if dec.shape[1] < 2:
             continue
         first_prev = z["pre_idx"][:, -1:, :]                # route of the last prompt token
-        reqs.append((dec.transpose(1, 0, 2), np.concatenate([first_prev, dec[:, :-1]], 1).transpose(1, 0, 2)))
+        r = [dec.transpose(1, 0, 2), np.concatenate([first_prev, dec[:, :-1]], 1).transpose(1, 0, 2)]
+        if pred_dir:
+            p = np.load(os.path.join(pred_dir, os.path.basename(f)))
+            r += [p["next_anchor"], p["next_mix"]]          # [D, L, k]
+        reqs.append(tuple(r))
     return reqs
 
 
@@ -50,6 +57,9 @@ def run(args):
     reqs = _R["reqs"][:N]
     true = [masks(r[0], E) for r in reqs]
     prev = [masks(r[1], E) for r in reqs]
+    pred = {"oracle": true, "prev": prev}
+    if policy in ("anchor", "mix"):
+        pred[policy] = [masks(r[2 if policy == "anchor" else 3], E) for r in reqs]
     # requests sit at random points of their decode (continuous batching: a pool mixes old and new requests);
     # starting everyone at token 0 would put all streams in the same templated opening text
     rng = np.random.default_rng(0)
@@ -66,7 +76,7 @@ def run(args):
         elif policy == "fcfs":
             pick = list(alive[np.lexsort((alive, -wait[alive]))][:B])      # longest-waiting first: round robin
         else:
-            src = true if policy == "oracle" else prev
+            src = pred[policy]
             lim = int(np.ceil(len(alive) / B)) - 1 + k        # fair share of waiting (round robin) + k extra steps
             forced = alive[wait[alive] >= lim]
             forced = forced[np.argsort(-wait[forced])][:B]
@@ -111,9 +121,10 @@ def main():
     ap.add_argument("--steps", type=int, default=400)
     ap.add_argument("--workers", type=int, default=48)
     ap.add_argument("--no_offset", action="store_true", help="start every request at its first decode token")
+    ap.add_argument("--pred_dir", default=None, help="next_token_pred.py output: adds the anchor / mix policies")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    _R["reqs"] = load(a.trace, a.E)
+    _R["reqs"] = load(a.trace, a.E, a.pred_dir)
     _R["offset"] = not a.no_offset
     print(f"{len(_R['reqs'])} requests", flush=True)
     jobs = []
@@ -123,9 +134,9 @@ def main():
                 continue
             jobs.append((N, B, 0, "fcfs", a.steps, a.E))
             for k in a.k:
-                for pol in ("oracle", "prev"):
+                for pol in ("oracle", "prev") + (("anchor", "mix") if a.pred_dir else ()):
                     jobs.append((N, B, k, pol, a.steps, a.E))
-    with ProcessPoolExecutor(a.workers) as ex:
+    with ProcessPoolExecutor(a.workers, mp_context=mp.get_context("fork")) as ex:
         rows = list(ex.map(run, jobs))
     json.dump(rows, open(a.out, "w"), indent=1)
     base = {(r["N"], r["B"]): r["experts_per_layer_per_token"] for r in rows if r["policy"] == "fcfs"}

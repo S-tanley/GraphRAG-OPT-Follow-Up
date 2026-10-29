@@ -2,6 +2,9 @@
 
 *Bowen · 2026-10-19 · 状态：Q0、Q1、Q3 完成（2026-10-21，见 §8 和 `report/2026-10-21-moe-queue-pool-subst.md`）；原始的异步队列设计不成立；同步框架下的缓存感知路由在"被改动的 expert 使用 ≤ 约 10%"时不掉准确率*
 
+> **2026-10-21：已并入 `plan/2026-10-21-moe-multiuser-scheduling-plan.md`，以后在那份 plan 里推进。**
+
+
 依据：
 
 - profiling（`outputs/moe_edge/profile/`，slides：https://claude.ai/artifact/2JhG3EUVVkCLQzYVhynXWY）：offload 的 decode 有 **84–89% 的时间在等 SSD**；而且每层只零碎地读几个到二十几个 2.65MB 的小块，有效读取速度只有 **1–5.5 GB/s**，远低于约 9 GB/s 的峰值。

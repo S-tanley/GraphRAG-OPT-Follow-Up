@@ -14,6 +14,11 @@ Each MoE block's `switch_mlp` is replaced by OffloadSwitch:
 Policies: lru | lfu (global use count) | moeinf (within-request use count) | hyb (moeinf + lam*prior);
 `sw` = lfu during prefill. Prefetch: la1 (next layer's gate on this layer's input, decode only) and a
 request-level prior loaded in the background (set_prior).
+`slots` is one number for every layer or a list per layer (multi-user plan 4.1: pools sized from calibration counts,
+tsim_mu.layer_caps); warm(counts) fills the pools before a run; `subst` (subst_offload.py) is consulted by the
+patched MoE blocks for use-time substitution; `prefetcher` (prefetch.Prefetcher, plan 4.2) reads predicted experts in
+a background thread: slot tables and `pending` are then shared and guarded by `lock`; `want` / `now` (position =
+pos_base + layer) protect predicted experts from eviction (unused while nothing is predicted: want = -1).
 
   eng = OffloadEngine.attach(model, "~/mlx_offload/Qwen3-30B-A3B-4bit", slots=64, policy="moeinf")
 """
@@ -59,7 +64,8 @@ class OffloadEngine:
         self.tensors = meta["tensors"]
         self.fd = os.open(os.path.join(os.path.expanduser(store_dir), "experts.bin"), os.O_RDONLY)
         fcntl.fcntl(self.fd, F_NOCACHE, 1)
-        self.S = int(slots)
+        self.S_j = np.broadcast_to(np.asarray(slots, np.int64), (self.L,)).copy()     # slots of each layer
+        self.S = int(self.S_j.max())
         self._sw = policy.startswith("sw-")
         self.policy, self.la1, self.lam = (policy[3:] if self._sw else policy), la1, lam
         self.phase = "prefill"
@@ -67,7 +73,7 @@ class OffloadEngine:
         self.cdt = [DT[t["dtype"]] for t in self.tensors]
         sdt = [mx.uint16 if d == mx.bfloat16 else d for d in self.cdt]
         mk = lambda n: [mx.zeros([n] + t["shape"], dtype=d) for t, d in zip(self.tensors, sdt)]
-        self.pool = [mk(self.S) for _ in range(self.L)]
+        self.pool = [mk(int(s)) for s in self.S_j]
         self.stage = mk(self.E)
         mx.eval(self.pool, self.stage)
         self.pool_np = [[np.array(a, copy=False) for a in p] for p in self.pool]
@@ -79,18 +85,26 @@ class OffloadEngine:
             self.gaps.append(bytearray(t["offset"] - pos) if t["offset"] > pos else None)
             pos = t["offset"] + t["nbytes"]
         self.slot_of = np.full((self.L, self.E), -1, np.int32)
-        self.exp_in = np.full((self.L, self.S), -1, np.int32)
+        self.exp_in = np.full((self.L, self.S), -1, np.int32)        # -1 free, -2 no such slot (smaller layer)
+        for j, s in enumerate(self.S_j):
+            self.exp_in[j, s:] = -2
         self.last = np.zeros((self.L, self.E))
         self.freq = np.zeros((self.L, self.E))
         self.ruse = np.zeros((self.L, self.E))
         self.prior = np.zeros((self.L, self.E))
         self.pending = {}                         # (j, e) -> future (load into its slot)
         self.lock = threading.Lock()
+        self.want = np.full((self.L, self.E), -1.0)   # latest target position that predicted (j, e)
+        self.now = 0.0                            # position of the running layer: pos_base + j
+        self.pos_base = 0.0                       # set by the runner: decode step x L (monotonic across requests)
+        self.pinned, self.pin_layer = set(), -1   # experts of the running layer (prefetches never evict them)
+        self.prefetcher = None
         self.pool_exec = ThreadPoolExecutor(threads)
         self.clock = 0
         self.mode_cfg = mode_cfg
         self.shell = self._shell()
         self.gates = None
+        self.subst = None
         self.reset_stats()
 
     # ------------------------------------------------------------------ setup
@@ -169,17 +183,21 @@ class OffloadEngine:
 
     def _victim(self, j, protect, min_score=None):
         occ = self.exp_in[j]
-        free = np.flatnonzero(occ < 0)
+        free = np.flatnonzero(occ == -1)
         if len(free):
             return int(free[0])
-        cand = [s for s in range(self.S) if occ[s] not in protect and (j, int(occ[s])) not in self.pending]
-        if not cand:
+        cand = np.array([s for s in range(self.S)
+                         if occ[s] >= 0 and occ[s] not in protect and (j, int(occ[s])) not in self.pending], np.int64)
+        if not len(cand):
             return None
+        wanted = self.want[j, occ[cand]] >= self.now          # predicted experts go last (tsim_mu.Engine.victim)
+        if not wanted.all():
+            cand = cand[~wanted]
         sc = self._score(j, occ[cand])
         i = int(np.argmin(sc))
         if min_score is not None and sc[i] >= min_score:
             return None
-        return cand[i]
+        return int(cand[i])
 
     def _assign(self, j, e, s):
         old = self.exp_in[j, s]
@@ -205,11 +223,43 @@ class OffloadEngine:
 
     def _wait(self, j, es):
         t = time.perf_counter()
-        for e in es:
-            f = self.pending.pop((j, int(e)), None)
-            if f is not None:
-                f.result()
+        with self.lock:
+            futs = [f for f in (self.pending.pop((j, int(e)), None) for e in es) if f is not None]
+        for f in futs:
+            f.result()
         self.stats["stall_s"] += time.perf_counter() - t
+
+    def warm(self, counts):
+        """Fill each layer's pool with its most used experts under counts [L, E] (the simulator's warm start); the
+        use counts (lfu) start from them. Everything cached before is dropped; loads are not counted in the stats."""
+        if self.prefetcher is not None:
+            self.prefetcher.clear()
+        for f in list(self.pending.values()):
+            f.result()
+        self.pending.clear()
+        self.want[:] = -1
+        self.slot_of[:] = -1
+        self.exp_in[self.exp_in >= 0] = -1
+        self.last[:] = 0
+        self.ruse[:] = 0
+        self.clock = 0
+        self.freq[:] = counts
+        for j in range(self.L):
+            for e in np.argsort(-counts[j], kind="stable")[: int(self.S_j[j])]:
+                self._load_async(j, int(e), protect=set())
+        for f in self.pending.values():
+            f.result()
+        self.pending.clear()
+        self.reset_stats()
+
+    def ready_mask(self, j):
+        """[E] experts of layer j usable now: in the pool and not still being read."""
+        with self.lock:
+            m = self.slot_of[j] >= 0
+            for (jj, e), f in self.pending.items():
+                if jj == j and not f.done():
+                    m[e] = False
+        return m
 
     # ------------------------------------------------------------------ prefetch API
     def new_request(self, prior=None):
@@ -218,7 +268,7 @@ class OffloadEngine:
         self.prior[:] = 0 if prior is None else prior
         if prior is not None:                     # background: most valuable predicted experts first
             order = np.argsort(-prior, axis=None)
-            for flat in order[: self.S * self.L]:
+            for flat in order[: int(self.S_j.sum())]:
                 j, e = divmod(int(flat), self.E)
                 if prior[j, e] <= 0:
                     break
@@ -242,6 +292,7 @@ class OffloadEngine:
     def forward(self, j, x, indices):
         idx = np.array(indices)                   # forces the graph up to this layer's gate
         uniq = np.unique(idx)
+        self.now = self.pos_base + j
         self.clock += 1
         ntok = int(np.prod(idx.shape[:-1]))
         if self.la1 and ntok == 1 and j + 1 < self.L:
@@ -249,7 +300,7 @@ class OffloadEngine:
             self.stats["la1_issued"] += len(nxt)
             for e in nxt:
                 self._load_async(j + 1, int(e), protect=set())
-        if len(uniq) <= self.S:
+        if len(uniq) <= self.S_j[j]:
             y = self._forward_pool(j, x, idx, uniq)
         else:
             y = self._forward_stage(j, x, idx, uniq)
@@ -260,15 +311,23 @@ class OffloadEngine:
 
     def _forward_pool(self, j, x, idx, uniq):
         protect = set(int(e) for e in uniq)
-        for e in uniq:
-            if self.slot_of[j, e] < 0 and (j, int(e)) not in self.pending:
-                self._load_async(j, int(e), protect)
+        with self.lock:
+            self.pinned, self.pin_layer = protect, j
+            for e in uniq:
+                if self.slot_of[j, e] < 0 and (j, int(e)) not in self.pending:
+                    if self.prefetcher is not None:
+                        self.prefetcher.take(j, int(e))
+                    self._load_async(j, int(e), protect)
+            self.want[j, uniq] = -1
         self._wait(j, uniq)
-        remap = self.slot_of[j][idx].astype(np.uint32)
+        with self.lock:
+            remap = self.slot_of[j][idx].astype(np.uint32)
         return switch_layers.SwitchGLU.__call__(self._bind(self.pool[j]), x, mx.array(remap))
 
     def _forward_stage(self, j, x, idx, uniq):
-        res = np.array([self.slot_of[j, e] >= 0 or (j, int(e)) in self.pending for e in uniq])
+        with self.lock:
+            self.pinned, self.pin_layer = set(int(e) for e in uniq), j
+            res = np.array([self.slot_of[j, e] >= 0 or (j, int(e)) in self.pending for e in uniq])
         miss = uniq[~res]
         self._wait(j, uniq[res])
         futs = [self.pool_exec.submit(self._read_into, j, int(e), [v[int(e)] for v in self.stage_np]) for e in miss]
@@ -279,8 +338,9 @@ class OffloadEngine:
         self.stats["loads"] += len(miss)
         self.stats["bytes"] += len(miss) * self.rec
         self.stats["staged"] += len(miss)
-        in_pool = self.slot_of[j][idx] >= 0
-        pool_idx = np.where(in_pool, self.slot_of[j][idx], 0).astype(np.uint32)
+        with self.lock:
+            in_pool = self.slot_of[j][idx] >= 0
+            pool_idx = np.where(in_pool, self.slot_of[j][idx], 0).astype(np.uint32)
         y_pool = switch_layers.SwitchGLU.__call__(self._bind(self.pool[j]), x, mx.array(pool_idx))
         if len(miss):
             y_stage = switch_layers.SwitchGLU.__call__(self._bind(self.stage), x, mx.array(idx.astype(np.uint32)))
@@ -289,17 +349,18 @@ class OffloadEngine:
             y = y_pool
         mx.eval(y)                                # the staging buffer is reused by the next layer
         # retention (E4): keep the highest-scoring experts among resident + staged
-        self.ruse[j, uniq] += 1                   # count this use before deciding
-        cand = np.concatenate([self.exp_in[j][self.exp_in[j] >= 0], miss]).astype(np.int64)
-        keep = set(cand[np.argsort(-self._score(j, cand))[: self.S]].tolist())
-        self.ruse[j, uniq] -= 1
-        for e in miss:
-            if int(e) in keep:
-                s = self._victim(j, protect=keep)
-                if s is None:
-                    continue
-                self._assign(j, int(e), s)
-                for dst, src in zip(self.pool_np[j], self.stage_np):
-                    dst[s] = src[int(e)]
-                self.stats["retained"] += 1
+        with self.lock:
+            self.ruse[j, uniq] += 1               # count this use before deciding
+            cand = np.concatenate([self.exp_in[j][self.exp_in[j] >= 0], miss]).astype(np.int64)
+            keep = set(cand[np.argsort(-self._score(j, cand))[: int(self.S_j[j])]].tolist())
+            self.ruse[j, uniq] -= 1
+            for e in miss:
+                if int(e) in keep:
+                    s = self._victim(j, protect=keep)
+                    if s is None:
+                        continue
+                    self._assign(j, int(e), s)
+                    for dst, src in zip(self.pool_np[j], self.stage_np):
+                        dst[s] = src[int(e)]
+                    self.stats["retained"] += 1
         return y

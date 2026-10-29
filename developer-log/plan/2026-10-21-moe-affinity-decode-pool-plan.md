@@ -2,6 +2,9 @@
 
 *Bowen · 2026-10-21 · 状态：A0 完成（见 §5），A1 待做*
 
+> **2026-10-21：已并入 `plan/2026-10-21-moe-multiuser-scheduling-plan.md`，以后在那份 plan 里推进。**
+
+
 来源：讨论中提出，所有想法最终都面向多用户。现有两个 plan 都偏单用户或单步视角：
 - `2026-10-19-moe-trajectory-anchor-plan.md`：P3 只做了单用户（batch = 1）；
 - `2026-10-19-moe-expert-queue-plan.md`：还没开始。

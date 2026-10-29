@@ -1,7 +1,7 @@
 # Report：KV prefetch K0 第二轮——更多数据集和 RAG 类型、只看生成侧、question 提前 prefill
 
 日期：2026-10-21
-plan：`plan/2026-10-19-graphrag-kv-prefetch-plan.md`（K0；K1 的复用率预览）
+plan：`archive/plan/2026-10-19-graphrag-kv-prefetch-plan.md`（K0；K1 的复用率预览）
 上一轮：`report/2026-10-20-h200-quant-anchor-k0.md` §4（RoG KG 路径枚举：4 跳时检索占 78–94%，3 跳以下检索可忽略）
 
 这一轮按讨论的三点调整：

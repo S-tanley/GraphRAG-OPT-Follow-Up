@@ -2,7 +2,7 @@
 
 日期：2026-10-21
 plan：
-- `plan/2026-10-19-moe-expert-queue-plan.md`（Q0、Q1、Q3）
+- `archive/plan/2026-10-19-moe-expert-queue-plan.md`（Q0、Q1、Q3）
 - `plan/2026-10-21-moe-affinity-decode-pool-plan.md`（A0）
 
 机器：
