@@ -1,13 +1,0 @@
-peaks: {'mem_bw': '534 G', 'flops_bf16': '57797 G', 'flops_q4': '53657 G'}
-Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 4719.33it/s]
-offload  decode  B= 1: timeline     3.45 ms (measured end-to-end     5.26 ms)  gpu ops    0.67 ms  io wait    2.74 ms  SSD reads 1
-offload  decode  B= 8: timeline    15.10 ms (measured end-to-end    15.11 ms)  gpu ops    1.53 ms  io wait   13.52 ms  SSD reads 21
-offload  decode  B=16: timeline    22.29 ms (measured end-to-end    22.88 ms)  gpu ops    3.12 ms  io wait   19.13 ms  SSD reads 35
-offload  decode  B=32: timeline    29.20 ms (measured end-to-end    26.13 ms)  gpu ops    3.18 ms  io wait   25.98 ms  SSD reads 47
-offload  decode  B=64: timeline    39.97 ms (measured end-to-end    38.21 ms)  gpu ops    5.49 ms  io wait   34.43 ms  SSD reads 71
-offload  prefill B= 1: timeline    73.92 ms (measured end-to-end    74.87 ms)  gpu ops    8.56 ms  io wait   65.31 ms  SSD reads 157
-offload  prefill B= 8: timeline   110.18 ms (measured end-to-end   112.77 ms)  gpu ops   32.91 ms  io wait   77.05 ms  SSD reads 180
-offload  prefill B=16: timeline   137.85 ms (measured end-to-end   136.39 ms)  gpu ops   60.92 ms  io wait   76.47 ms  SSD reads 182
-offload  prefill B=32: timeline   197.34 ms (measured end-to-end   196.33 ms)  gpu ops  117.52 ms  io wait   79.08 ms  SSD reads 184
-offload  prefill B=64: timeline   308.54 ms (measured end-to-end   312.58 ms)  gpu ops  228.83 ms  io wait   77.57 ms  SSD reads 185
-PROFILE DONE

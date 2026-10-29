@@ -1,5 +1,0 @@
-Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 4953.25it/s]
-wrote outputs/kv_prefetch/gen_mac_kg_Qwen3-8B-4bit.jsonl
-Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 5524.27it/s]
-wrote outputs/kv_prefetch/gen_mac_kg_Qwen3-30B-A3B-4bit.jsonl
-KGGEN DONE

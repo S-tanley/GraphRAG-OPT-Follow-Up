@@ -1,122 +1,0 @@
-Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 5470.83it/s]
-hotpotqa  Qwen3-8B-4bit dense:k5:qlast  len    710 prefill   235.3 decode   36.0 rest  50.4 early  32.8 ms | EM 0.510
-hotpotqa  Qwen3-8B-4bit dense:k5:qfirst len    710 prefill   249.3 decode   37.9 rest  27.4 early  52.8 ms | EM 0.510
-hotpotqa  Qwen3-8B-4bit dense:k10:qlast  len   1456 prefill   489.0 decode   41.1 rest  51.5 early  32.9 ms | EM 0.520
-hotpotqa  Qwen3-8B-4bit dense:k20:qlast  len   2950 prefill  1000.6 decode   43.9 rest  51.8 early  33.1 ms | EM 0.530
-hotpotqa  Qwen3-8B-4bit rerank:k5:qlast  len    735 prefill   266.8 decode   39.5 rest  50.9 early  32.9 ms | EM 0.530
-hotpotqa  Qwen3-8B-4bit wiki:k5:qlast  len    850 prefill   288.8 decode   41.3 rest  51.2 early  32.9 ms | EM 0.280
-musique   Qwen3-8B-4bit dense:k5:qlast  len    623 prefill   221.6 decode   39.9 rest  33.0 early  32.8 ms | EM 0.160
-musique   Qwen3-8B-4bit dense:k5:qfirst len    623 prefill   221.0 decode   39.5 rest  27.5 early  51.6 ms | EM 0.210
-musique   Qwen3-8B-4bit dense:k10:qlast  len   1198 prefill   387.6 decode   41.0 rest  33.3 early  32.9 ms | EM 0.180
-musique   Qwen3-8B-4bit dense:k20:qlast  len   2399 prefill   740.4 decode   42.9 rest  33.4 early  33.0 ms | EM 0.220
-musique   Qwen3-8B-4bit rerank:k5:qlast  len    719 prefill   254.8 decode   39.8 rest  33.0 early  32.8 ms | EM 0.160
-musique   Qwen3-8B-4bit wiki:k5:qlast  len    839 prefill   280.6 decode   37.8 rest  33.0 early  32.8 ms | EM 0.040
-2wiki     Qwen3-8B-4bit dense:k5:qlast  len    930 prefill   300.9 decode   40.2 rest  38.7 early  32.9 ms | EM 0.370
-2wiki     Qwen3-8B-4bit dense:k5:qfirst len    930 prefill   303.4 decode   41.2 rest  27.5 early  52.4 ms | EM 0.400
-2wiki     Qwen3-8B-4bit dense:k10:qlast  len   1873 prefill   614.7 decode   42.5 rest  47.0 early  32.9 ms | EM 0.390
-2wiki     Qwen3-8B-4bit dense:k20:qlast  len   3819 prefill  1285.6 decode   52.9 rest  44.8 early  33.1 ms | EM 0.380
-2wiki     Qwen3-8B-4bit rerank:k5:qlast  len   1411 prefill   454.4 decode   44.4 rest  42.9 early  32.9 ms | EM 0.430
-2wiki     Qwen3-8B-4bit wiki:k5:qlast  len    872 prefill   286.2 decode   40.2 rest  34.2 early  32.9 ms | EM 0.210
-Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files: 100%|██████████| 12/12 [00:00<00:00, 5102.04it/s]
-hotpotqa  Qwen3-30B-A3B-4bit dense:k5:qlast  len    710 prefill   155.1 decode   31.6 rest  56.2 early  42.4 ms | EM 0.500
-hotpotqa  Qwen3-30B-A3B-4bit dense:k5:qfirst len    710 prefill   178.5 decode   32.7 rest  24.1 early  71.8 ms | EM 0.470
-hotpotqa  Qwen3-30B-A3B-4bit dense:k10:qlast  len   1456 prefill   313.4 decode   33.0 rest  58.0 early  42.4 ms | EM 0.530
-hotpotqa  Qwen3-30B-A3B-4bit dense:k20:qlast  len   2950 prefill   654.2 decode   34.3 rest  58.6 early  42.5 ms | EM 0.480
-hotpotqa  Qwen3-30B-A3B-4bit rerank:k5:qlast  len    735 prefill   185.5 decode   31.9 rest  57.7 early  42.6 ms | EM 0.530
-hotpotqa  Qwen3-30B-A3B-4bit wiki:k5:qlast  len    850 prefill   211.5 decode   32.8 rest  57.9 early  42.6 ms | EM 0.240
-musique   Qwen3-30B-A3B-4bit dense:k5:qlast  len    623 prefill   168.3 decode   32.4 rest  43.4 early  42.6 ms | EM 0.130
-musique   Qwen3-30B-A3B-4bit dense:k5:qfirst len    623 prefill   186.9 decode   32.7 rest  24.0 early  66.0 ms | EM 0.170
-musique   Qwen3-30B-A3B-4bit dense:k10:qlast  len   1198 prefill   279.6 decode   33.2 rest  43.1 early  42.5 ms | EM 0.120
-musique   Qwen3-30B-A3B-4bit dense:k20:qlast  len   2399 prefill   483.9 decode   41.8 rest  42.6 early  42.4 ms | EM 0.180
-musique   Qwen3-30B-A3B-4bit rerank:k5:qlast  len    719 prefill   168.1 decode   26.2 rest  42.4 early  42.3 ms | EM 0.110
-musique   Qwen3-30B-A3B-4bit wiki:k5:qlast  len    839 prefill   187.1 decode   31.8 rest  42.8 early  42.3 ms | EM 0.040
-2wiki     Qwen3-30B-A3B-4bit dense:k5:qlast  len    930 prefill   178.9 decode   32.9 rest  46.5 early  42.5 ms | EM 0.350
-2wiki     Qwen3-30B-A3B-4bit dense:k5:qfirst len    930 prefill   179.1 decode   35.6 rest  23.8 early  68.2 ms | EM 0.360
-2wiki     Qwen3-30B-A3B-4bit dense:k10:qlast  len   1873 prefill   348.9 decode   33.4 rest  45.8 early  42.3 ms | EM 0.320
-2wiki     Qwen3-30B-A3B-4bit dense:k20:qlast  len   3819 prefill   805.9 decode   43.6 rest  46.8 early  42.5 ms | EM 0.380
-2wiki     Qwen3-30B-A3B-4bit rerank:k5:qlast  len   1411 prefill   284.4 decode   33.4 rest  46.2 early  42.3 ms | EM 0.370
-2wiki     Qwen3-30B-A3B-4bit wiki:k5:qlast  len    872 prefill   190.1 decode   33.9 rest  45.4 early  42.3 ms | EM 0.200
-Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]Fetching 14 files: 100%|██████████| 14/14 [00:00<00:00, 4632.40it/s]
-W1021 00:49:44.241000 50437 torch/distributed/elastic/multiprocessing/redirects.py:29] NOTE: Redirects are currently not supported in Windows or MacOs.
-Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:47,  8.19it/s]Loading weights:  33%|███▎      | 129/391 [00:00<00:01, 240.44it/s]Loading weights:  51%|█████▏    | 201/391 [00:00<00:00, 255.77it/s]Loading weights:  65%|██████▍   | 253/391 [00:01<00:00, 266.59it/s]Loading weights:  76%|███████▌  | 296/391 [00:01<00:00, 247.10it/s]Loading weights:  85%|████████▍ | 331/391 [00:01<00:00, 252.17it/s]Loading weights:  93%|█████████▎| 364/391 [00:01<00:00, 252.57it/s]Loading weights: 100%|██████████| 391/391 [00:01<00:00, 228.92it/s]
-Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]Fetching 13 files: 100%|██████████| 13/13 [00:00<00:00, 5716.71it/s]
-Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:   2%|▏         | 7/393 [00:00<00:10, 38.19it/s]Loading weights:   3%|▎         | 11/393 [00:02<02:01,  3.13it/s]Loading weights: 100%|██████████| 393/393 [00:02<00:00, 135.47it/s]
-Traceback (most recent call last):
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 168, in <module>
-    main()
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 164, in main
-    {"gen": cmd_gen, "retrieve": cmd_retrieve}[a.cmd](a)
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/experiments/kv_prefetch/rag_mac.py", line 147, in cmd_retrieve
-    rr(**b).logits.view(-1).float().cpu()
-    ^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/utils/generic.py", line 943, in wrapper
-    output = func(self, *args, **kwargs)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 946, in forward
-    outputs = self.roberta(
-              ^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/utils/generic.py", line 1081, in wrapper
-    output = func(self, *args, **kwargs)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/utils/output_capturing.py", line 287, in wrapper
-    outputs = func(self, *args, **kwargs)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 637, in forward
-    encoder_outputs = self.encoder(
-                      ^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 531, in forward
-    hidden_states = layer_module(
-                    ^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/modeling_layers.py", line 111, in __call__
-    return super().__call__(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 430, in forward
-    self_attention_output, _ = self.attention(
-                               ^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 361, in forward
-    attention_output, attn_weights = self.self(
-                                     ^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1776, in _wrapped_call_impl
-    return self._call_impl(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
-    return forward_call(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/models/xlm_roberta/modeling_xlm_roberta.py", line 239, in forward
-    attn_output, attn_weights = attention_interface(
-                                ^^^^^^^^^^^^^^^^^^^^
-  File "/Users/bowenzheng/Projects/GraphRAG-OPT-Follow-Up/.venv-mac/lib/python3.12/site-packages/transformers/integrations/sdpa_attention.py", line 180, in sdpa_attention_forward
-    attn_output = attn_output.transpose(1, 2).contiguous()
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-RuntimeError: MPS backend out of memory (MPS allocated: 11.02 GiB, other allocations: 78.64 GiB, max allowed: 88.13 GiB). Tried to allocate 44.24 MiB on private pool. Use PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0 to disable upper limit for memory allocations (may cause system failure).
-K0MAC DONE

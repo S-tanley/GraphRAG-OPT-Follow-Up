@@ -1,2 +1,6 @@
 outputs/
 .DS_Store
+__pycache__/
+*.pyc
+logs/
+logs_mac/
